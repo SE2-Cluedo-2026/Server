@@ -6,6 +6,9 @@ public class Room {
     private RoomType roomType;
 
     public Room(RoomType roomType) {
+        if (roomType == null) {
+            throw new IllegalArgumentException("RoomType cannot be null");
+        }
         this.roomType = roomType;
     }
 
