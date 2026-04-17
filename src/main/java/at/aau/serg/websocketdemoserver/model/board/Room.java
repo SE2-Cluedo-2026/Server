@@ -8,7 +8,7 @@ import java.util.*;
 public class Room {
     @Getter
     private final RoomType roomType;
-    private List<Player> players = new ArrayList<Player>();
+    private final List<Player> players = new ArrayList<>();
 
     public Room(RoomType roomType) {
         if (roomType == null) {
