@@ -5,6 +5,9 @@ public class Field {
     private FieldType fieldType;
 
     public Field(FieldType fieldType) {
+        if (fieldType == null) {
+            throw new IllegalArgumentException("fieldType cannot be null");
+        }
         this.fieldType = fieldType;
     }
 
