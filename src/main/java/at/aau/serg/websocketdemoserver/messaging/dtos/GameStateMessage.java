@@ -13,12 +13,7 @@ public class GameStateMessage {
     private String currentPhase;
     private int currentPlayerIndex;
 
-    public GameStateMessage (String gameID, String status, String currentPhase, int currentPlayerIndex){
-        this.gameID = gameID;
-        this.status = status;
-        this.currentPhase = currentPhase;
-        this.currentPlayerIndex = currentPlayerIndex;
-    }
+
 
     public static GameStateMessage from (Game game){
         //TODO
