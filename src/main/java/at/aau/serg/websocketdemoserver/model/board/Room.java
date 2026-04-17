@@ -1,9 +1,14 @@
 package at.aau.serg.websocketdemoserver.model.board;
 
 import at.aau.serg.websocketdemoserver.model.enums.RoomType;
+import at.aau.serg.websocketdemoserver.model.game.Player;
+import lombok.*;
+import java.util.*;
 
 public class Room {
-    private RoomType roomType;
+    @Getter
+    private final RoomType roomType;
+    private final List<Player> players = new ArrayList<>();
 
     public Room(RoomType roomType) {
         if (roomType == null) {
@@ -12,7 +17,15 @@ public class Room {
         this.roomType = roomType;
     }
 
-    public RoomType getRoomType() {
-        return roomType;
+    public void addPlayer(Player player) {
+        players.add(player);
+    }
+
+    public void removePlayer(Player player) {
+        players.remove(player);
+    }
+
+    public boolean isPlayerInRoom(Player player) {
+        return players.contains(player);
     }
 }
