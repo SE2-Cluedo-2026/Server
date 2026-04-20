@@ -1,14 +1,18 @@
 package at.aau.serg.websocketdemoserver.model.board;
 
+import lombok.*;
 import java.util.List;
 
 public class Board {
-    private List<Field> fields;
+    private final BoardFactory boardFactory = BoardFactory.getINSTANCE();
+    @Getter
+    private Field[][] fields;
+    @Getter
     private List<Room> rooms;
 
-    public Board(List<Field> fields, List<Room> rooms) {
-        this.fields = fields;
-        this.rooms = rooms;
+    public Board() {
+        this.fields = boardFactory.createFieldsForBoard();
+        this.rooms = boardFactory.createRoomsForBoard();
     }
 
     public boolean isMoveValid() {
@@ -16,11 +20,4 @@ public class Board {
         return false;
     }
 
-    public List<Field> getFields() {
-        return fields;
-    }
-
-    public List<Room> getRooms() {
-        return rooms;
-    }
 }

@@ -14,14 +14,6 @@ public class SuggestionMessage {
     private String room;
     private String weapon;
 
-    public SuggestionMessage (String gameID, String suggesterID, String suspect, String room, String weapon){
-        this.gameID = gameID;
-        this.suggesterID = suggesterID;
-        this.suspect = suspect;
-        this.room = room;
-        this.weapon = weapon;
-    }
-
     public static SuggestionMessage from (String gameID, Suggestion suggestion){
         //TODO
         return null;
