@@ -6,9 +6,16 @@ import static org.junit.jupiter.api.Assertions.*;
 public class SuggestionResolverTest {
 
     @Test
-    void testSuggestionResolverIsCreated(){
-        SuggestionResolver suggestionresolver = new SuggestionResolver();
-        assertNotNull(suggestionresolver);
+    public void TestConstructor() {
+        SuggestionResolver resolver = new SuggestionResolver();
+        assertNotNull(resolver);
+    }
+
+    @Test
+    public void TestResolveSuggestionReturnsNull() {
+        SuggestionResolver resolver = new SuggestionResolver();
+        Player result = resolver.resolveSuggestion(null, null);
+        assertNull(result);
     }
 }
 
