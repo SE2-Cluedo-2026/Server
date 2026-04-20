@@ -3,8 +3,11 @@ package at.aau.serg.websocketdemoserver.model.game;
 import at.aau.serg.websocketdemoserver.model.board.Board;
 import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
 import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
-
+import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import java.util.List;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class Game {
     private String gameId;
@@ -41,7 +44,16 @@ public class Game {
     public void endTurn() {
         // TODO
     }
+    public List<CharacterType> getAvailableCharacters() {
+        Set<CharacterType> takenCharacters = players.stream()
+                .map(Player::getCharacter)
+                .filter(character -> character != null)
+                .collect(Collectors.toSet());
 
+        return Arrays.stream(CharacterType.values())
+                .filter(character -> !takenCharacters.contains(character))
+                .collect(Collectors.toList());
+    }
     public String getGameId() {
         return gameId;
     }
