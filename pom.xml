@@ -21,7 +21,7 @@
         <sonar.projectKey>SE2-Cluedo-2026_Server</sonar.projectKey>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.coverage.jacoco.xmlReportPaths>
-            ${project.build.directory}/reports/jacoco/jacocoTestReport/jacoco.xml
+            ${project.build.directory}/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
         </sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
@@ -95,7 +95,7 @@
                         </goals>
                         <configuration>
                             <outputDirectory>
-                                ${project.build.directory}/reports/jacoco/jacocoTestReport
+                                ${project.build.directory}/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
                             </outputDirectory>
                         </configuration>
                     </execution>
