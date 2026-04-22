@@ -4,13 +4,16 @@ import at.aau.serg.websocketdemoserver.model.board.Board;
 import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
 import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.*;
 
 public class Game {
-    private String gameId;
+    @Getter
+    private static final Game INSTANCE = new Game();
     private GameStatus status;
     private TurnPhase currentPhase;
     private List<Player> players;
@@ -18,15 +21,41 @@ public class Game {
     private CaseFile caseFile;
     private TurnManager turnManager;
 
-    public Game(String gameId, GameStatus status, TurnPhase currentPhase, List<Player> players,
-                Board board, CaseFile caseFile, TurnManager turnManager) {
-        this.gameId = gameId;
-        this.status = status;
-        this.currentPhase = currentPhase;
-        this.players = players;
-        this.board = board;
-        this.caseFile = caseFile;
-        this.turnManager = turnManager;
+    private Game() {
+        this.status = GameStatus.LOBBY;
+        this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
+        this.players = new ArrayList<>();
+        this.board = board.getINSTANCE();
+        this.turnManager = turnManager.getINSTANCE();
+    }
+
+    public void addPlayer(Player player) {
+            this.players.add(player);
+    }
+
+    public boolean playerAlreadyJoined(String playerId) {
+        for(Player p : players) {
+            if(p.getPlayerId().equals(playerId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean leaveLobby(String playerId) {
+        boolean removed = false;
+        for(Player p : this.players) {
+            if(p.getPlayerId().equals(playerId)) {
+                this.players.remove(p);
+                removed = true;
+                break;
+            }
+        }
+        return removed;
+    }
+
+    public boolean isGameFull() {
+        return players.size() >= 4;
     }
 
     public void start() {
@@ -53,9 +82,6 @@ public class Game {
         return Arrays.stream(CharacterType.values())
                 .filter(character -> !takenCharacters.contains(character))
                 .collect(Collectors.toList());
-    }
-    public String getGameId() {
-        return gameId;
     }
 
     public GameStatus getStatus() {
