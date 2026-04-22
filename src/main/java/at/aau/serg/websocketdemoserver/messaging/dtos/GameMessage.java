@@ -5,15 +5,12 @@ import lombok.Data;
 import lombok.Getter;
 import tools.jackson.databind.JsonNode;
 
+@Data
+@AllArgsConstructor
 public class GameMessage {
-  @Data
-  @AllArgsConstructor
-  public class LobbyMessage {
     @Getter
-    private LobbyMessageType type;
+    private GameMessageType type;
     @Getter
     private JsonNode payload;
-
-  }
 
 }
