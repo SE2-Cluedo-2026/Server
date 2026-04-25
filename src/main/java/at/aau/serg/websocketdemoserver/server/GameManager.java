@@ -2,13 +2,15 @@ package at.aau.serg.websocketdemoserver.server;
 
 import at.aau.serg.websocketdemoserver.model.game.Game;
 
-public class GameSession {
+// Responsible for action and consequences while game is running
+public class GameManager {
+
     private Game game;
 
-    public GameSession(){
+    public GameManager(){
 
     }
-    public GameSession (Game game){
+    public GameManager(Game game){
         this.game = game;
     }
 

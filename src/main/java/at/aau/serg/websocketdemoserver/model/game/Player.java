@@ -6,8 +6,7 @@ import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import java.util.List;
 
 public class Player {
-    private String playerId;
-    private String name;
+    private final String playerId;
     private CharacterType character;
     private boolean ready;
     private boolean active;
@@ -15,19 +14,15 @@ public class Player {
     private boolean cheatUsed;
     private boolean accusationUsed;
     private List<Card> cards;
+    private String currentPosition;
 
-    public Player(String playerId, String name, CharacterType character, boolean ready,
-                  boolean active, boolean eliminated, boolean cheatUsed,
-                  boolean accusationUsed, List<Card> cards) {
+    public Player(String playerId) {
         this.playerId = playerId;
-        this.name = name;
-        this.character = character;
-        this.ready = ready;
-        this.active = active;
-        this.eliminated = eliminated;
-        this.cheatUsed = cheatUsed;
-        this.accusationUsed = accusationUsed;
-        this.cards = cards;
+        this.ready = false;
+        this.active = true;
+        this.eliminated = false;
+        this.cheatUsed = false;
+        this.accusationUsed = false;
     }
 
     public void markReady() {
@@ -44,10 +39,6 @@ public class Player {
 
     public String getPlayerId() {
         return playerId;
-    }
-
-    public String getName() {
-        return name;
     }
 
     public CharacterType getCharacter() {

@@ -1,16 +1,18 @@
 package at.aau.serg.websocketdemoserver.model.game;
 
 import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
+import lombok.*;
 
 public class TurnManager {
-    private int currentPlayerIndex;
+    @Getter
+    private static final TurnManager INSTANCE = new TurnManager();
+
+    private int currentPlayerId;
     private int diceValue;
     private TurnPhase phase;
 
-    public TurnManager(int currentPlayerIndex, int diceValue, TurnPhase phase) {
-        this.currentPlayerIndex = currentPlayerIndex;
-        this.diceValue = diceValue;
-        this.phase = phase;
+    private TurnManager() {
+        this.phase = TurnPhase.WAITING_FOR_ROLL;
     }
 
     public void nextTurn() {
@@ -22,8 +24,8 @@ public class TurnManager {
         return 0;
     }
 
-    public int getCurrentPlayerIndex() {
-        return currentPlayerIndex;
+    public int getCurrentPlayerId() {
+        return currentPlayerId;
     }
 
     public int getDiceValue() {

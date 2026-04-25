@@ -1,35 +1,60 @@
 package at.aau.serg.websocketdemoserver.websocket.broker;
 
+import at.aau.serg.websocketdemoserver.messaging.dtos.GameMessage;
+import at.aau.serg.websocketdemoserver.messaging.dtos.LobbyMessage;
 import at.aau.serg.websocketdemoserver.messaging.dtos.StompMessage;
-import at.aau.serg.websocketdemoserver.messaging.dtos.JoinLobbyMessage;
 import at.aau.serg.websocketdemoserver.server.GameServer;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
 
 import org.springframework.stereotype.Controller;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 
 @Controller
 public class WebSocketBrokerController {
-    private final GameServer gameServer = new GameServer();
+    @Autowired
+    private GameServer gameServer;
 
-    @MessageMapping("/hello")
-    @SendTo("/topic/hello-response")
-    public String handleHello(String text) {
-        // TODO handle the messages here
-        return "echo from broker: "+text;
-    }
-    @MessageMapping("/object")
-    @SendTo("/topic/rcv-object")
-    public StompMessage handleObject(StompMessage msg) {
-
-       return msg;
-    }
-
-    @MessageMapping("/join-lobby")
+    @MessageMapping("/lobby")
     @SendTo("/topic/lobby-response")
-    public String handleJoinLobby(JoinLobbyMessage message) {
-        return gameServer.joinLobby(message);
+    public ObjectNode routeLobbyMessage(LobbyMessage message) {
+        //Types for LobbyMessages for central connection
+        JsonNode payload = message.getPayload();
+        System.out.println(message);
+
+        switch(message.getType()) {
+            case JOIN_LOBBY -> {
+                return gameServer.joinLobby(payload);
+            }
+            case SET_CHARACTER_TYPE_AND_STATUS_READY -> {
+                // TODO: Implement the other LobbyMessage Types
+            }
+            case LEAVE_LOBBY -> {
+                return gameServer.leaveLobby(payload);
+            }
+        }
+
+        return null;
+    }
+
+    @MessageMapping("/game")
+    @SendTo("topic/game-response")
+    public ObjectNode routeGameMessage(GameMessage message) {
+        JsonNode payload = message.getPayload();
+        // TODO: implement GameMessage routing for GameMessage Types
+        switch(message.getType()){
+            case ROLL_DICE -> {
+                // TODO
+            }
+            case MOVE -> {
+                // TODO
+            }
+        }
+
+        return null;
     }
 
 }

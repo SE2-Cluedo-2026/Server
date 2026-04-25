@@ -1,17 +1,44 @@
 package at.aau.serg.websocketdemoserver.server;
 
+import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
+import at.aau.serg.websocketdemoserver.model.game.Game;
+import at.aau.serg.websocketdemoserver.model.game.Player;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 public class LobbyManager {
-    private final Map<String, String> players = new HashMap<>();
+    // uses GameInstance
+    private final Game game = Game.getINSTANCE();
 
-    public void addPlayer(String playerName, String characterType) {
-        players.put(playerName, characterType);
+  public boolean leaveLobby(String playerId) {
+    return game.leaveLobby(playerId);
+  }
+
+  public Game getGame() {
+        return game;
     }
 
-    public Map<String, String> getPlayers() {
-        return players;
+    public boolean addPlayer(String playerKey) {
+        if(!game.playerAlreadyJoined(playerKey)) {
+            Player player = new Player(playerKey);
+            game.addPlayer(player);
+            return true;
+        }
+        return false;
     }
+
+    public List<CharacterType> getAvailableCharacters() {
+        return game.getAvailableCharacters();
+    }
+
+    public boolean isGameFull() {
+        return game.isGameFull();
+    }
+
+    public List<Player> getPlayers() {
+        return game.getPlayers();
+    }
+
     public void joinLobby() {
         //TODO:
     }
