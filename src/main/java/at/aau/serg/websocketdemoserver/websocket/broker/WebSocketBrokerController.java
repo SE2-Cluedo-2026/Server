@@ -21,7 +21,6 @@ public class WebSocketBrokerController {
     @MessageMapping("/lobby")
     @SendTo("/topic/lobby-response")
     public ObjectNode routeLobbyMessage(LobbyMessage message) {
-        //Types for LobbyMessages for central connection
         JsonNode payload = message.getPayload();
         System.out.println(message);
 
@@ -30,7 +29,10 @@ public class WebSocketBrokerController {
                 return gameServer.joinLobby(payload);
             }
             case SET_CHARACTER_TYPE_AND_STATUS_READY -> {
-                // TODO: Implement the other LobbyMessage Types
+                return gameServer.setCharacterTypeAndStatusReady(payload);
+            }
+            case START_GAME -> {
+                return gameServer.startGame(payload);
             }
             case LEAVE_LOBBY -> {
                 return gameServer.leaveLobby(payload);
@@ -41,7 +43,7 @@ public class WebSocketBrokerController {
     }
 
     @MessageMapping("/game")
-    @SendTo("topic/game-response")
+    @SendTo("/topic/game-response")
     public ObjectNode routeGameMessage(GameMessage message) {
         JsonNode payload = message.getPayload();
         // TODO: implement GameMessage routing for GameMessage Types
