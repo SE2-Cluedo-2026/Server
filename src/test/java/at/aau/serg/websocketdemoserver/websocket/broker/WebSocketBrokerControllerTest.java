@@ -1,0 +1,80 @@
+package at.aau.serg.websocketdemoserver.websocket.broker;
+
+import at.aau.serg.websocketdemoserver.messaging.dtos.*;
+import at.aau.serg.websocketdemoserver.server.GameServer;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+public class WebSocketBrokerControllerTest {
+
+    @Mock
+    private GameServer gameServer;
+
+    @InjectMocks
+    private WebSocketBrokerController controller;
+
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    @Test
+    public void testRouteLobbyMessage_JoinLobby() {
+        JsonNode payload = mapper.createObjectNode();
+        ObjectNode expected = mapper.createObjectNode();
+        when(gameServer.joinLobby(payload)).thenReturn(expected);
+
+        LobbyMessage message = mock(LobbyMessage.class);
+        when(message.getType()).thenReturn(LobbyMessageType.JOIN_LOBBY);
+        when(message.getPayload()).thenReturn(payload);
+
+        assertEquals(expected, controller.routeLobbyMessage(message));
+    }
+
+    @Test
+    public void testRouteLobbyMessage_LeaveLobby() {
+        JsonNode payload = mapper.createObjectNode();
+        ObjectNode expected = mapper.createObjectNode();
+        when(gameServer.leaveLobby(payload)).thenReturn(expected);
+
+        LobbyMessage message = mock(LobbyMessage.class);
+        when(message.getType()).thenReturn(LobbyMessageType.LEAVE_LOBBY);
+        when(message.getPayload()).thenReturn(payload);
+
+        assertEquals(expected, controller.routeLobbyMessage(message));
+    }
+
+    @Test
+    public void testRouteLobbyMessage_SetCharacterReady_ReturnsNull() {
+        LobbyMessage message = mock(LobbyMessage.class);
+        when(message.getType()).thenReturn(LobbyMessageType.SET_CHARACTER_TYPE_AND_STATUS_READY);
+        when(message.getPayload()).thenReturn(mapper.createObjectNode());
+
+        assertNull(controller.routeLobbyMessage(message));
+    }
+
+    @Test
+    public void testRouteGameMessage_RollDice_ReturnsNull() {
+        GameMessage message = mock(GameMessage.class);
+        when(message.getType()).thenReturn(GameMessageType.ROLL_DICE);
+        when(message.getPayload()).thenReturn(mapper.createObjectNode());
+
+        assertNull(controller.routeGameMessage(message));
+    }
+
+    @Test
+    public void testRouteGameMessage_Move_ReturnsNull() {
+        GameMessage message = mock(GameMessage.class);
+        when(message.getType()).thenReturn(GameMessageType.MOVE);
+        when(message.getPayload()).thenReturn(mapper.createObjectNode());
+
+        assertNull(controller.routeGameMessage(message));
+    }
+}

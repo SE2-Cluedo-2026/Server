@@ -1,0 +1,10 @@
+services:
+  server:
+    image: ghcr.io/se2-cluedo-2026/server:latest
+    restart: unless-stopped
+    ports:
+      - "532XX:8080"  # 53200 durch euren zugewiesenen Port ersetzen
+    environment:
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
