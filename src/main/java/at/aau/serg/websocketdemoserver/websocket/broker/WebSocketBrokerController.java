@@ -5,13 +5,18 @@ import at.aau.serg.websocketdemoserver.messaging.dtos.JoinLobbyMessage;
 import at.aau.serg.websocketdemoserver.server.GameServer;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
+import at.aau.serg.websocketdemoserver.messaging.dtos.LobbyMessage;
+import at.aau.serg.websocketdemoserver.messaging.dtos.GameMessage;
 
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Controller;
-
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Controller
 public class WebSocketBrokerController {
-    private final GameServer gameServer = new GameServer();
+    @Autowired
+    private GameServer gameServer;
 
     @MessageMapping("/hello")
     @SendTo("/topic/hello-response")
