@@ -2,18 +2,36 @@ package at.aau.serg.websocketdemoserver.model.game;
 
 import at.aau.serg.websocketdemoserver.model.cards.Card;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
+import lombok.*;
 
 import java.util.List;
 
 public class Player {
+    @Getter
     private final String playerId;
+    @Getter
+    @Setter
     private CharacterType character;
+    @Getter
+    @Setter
     private boolean ready;
+    @Getter
+    @Setter
     private boolean active;
+    @Getter
+    @Setter
     private boolean eliminated;
+    @Getter
+    @Setter
     private boolean cheatUsed;
+    @Getter
+    @Setter
     private boolean accusationUsed;
+    @Getter
+    @Setter
     private List<Card> cards;
+    @Getter
+    @Setter
     private String currentPosition;
 
     public Player(String playerId) {
@@ -27,45 +45,16 @@ public class Player {
 
     public void markReady() {
         // TODO
+        this.ready = true;
     }
 
     public void useCheat() {
         // TODO
+        this.cheatUsed = true;
     }
 
     public void eliminate() {
         // TODO
-    }
-
-    public String getPlayerId() {
-        return playerId;
-    }
-
-    public CharacterType getCharacter() {
-        return character;
-    }
-
-    public boolean isReady() {
-        return ready;
-    }
-
-    public boolean isActive() {
-        return active;
-    }
-
-    public boolean isEliminated() {
-        return eliminated;
-    }
-
-    public boolean isCheatUsed() {
-        return cheatUsed;
-    }
-
-    public boolean isAccusationUsed() {
-        return accusationUsed;
-    }
-
-    public List<Card> getCards() {
-        return cards;
+        this.eliminated = true;
     }
 }
