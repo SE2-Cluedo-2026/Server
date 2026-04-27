@@ -1,5 +1,6 @@
 package at.aau.serg.websocketdemoserver.model.game;
 
+import at.aau.serg.websocketdemoserver.model.board.Position;
 import at.aau.serg.websocketdemoserver.model.cards.Card;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import lombok.*;
@@ -32,7 +33,7 @@ public class Player {
     private List<Card> cards;
     @Getter
     @Setter
-    private String currentPosition;
+    private Position currentPosition;
 
     public Player(String playerId) {
         this.playerId = playerId;
