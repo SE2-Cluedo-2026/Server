@@ -49,12 +49,10 @@ public class WebSocketBrokerController {
                 return gameServer.joinLobby(payload);
             }
             case SET_CHARACTER_TYPE_AND_STATUS_READY -> {
-                return gameServer.setReady(payload);
+                return gameServer.setCharacterTypeAndStatusReady(payload);
             }
             case START_GAME -> {
-                ObjectNode response = gameServer.startGame(payload);
-                messagingTemplate.convertAndSend("/topic/game-response", response);
-                return null;
+                return gameServer.startGame(payload);
             }
             case LEAVE_LOBBY -> {
                 return gameServer.leaveLobby(payload);

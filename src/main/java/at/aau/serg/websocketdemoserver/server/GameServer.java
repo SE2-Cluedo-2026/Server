@@ -55,7 +55,7 @@ public class GameServer {
             playerNode.put("playerId", p.getPlayerId());
             playerNode.put("ready", p.isReady());
             if(p.getCharacter() != null) {
-                playerNode.put("charcterType", p.getCharacter().toString());
+                playerNode.put("characterType", p.getCharacter().toString());
             }
             existingPlayers.add(playerNode);
         }
@@ -83,6 +83,55 @@ public class GameServer {
         response.set("payload", responsePayload);
         return response;
     }
+    public ObjectNode setCharacterTypeAndStatusReady(JsonNode payload) {
+        String playerId = payload.get("playerId").asText();
+        String characterTypeString = payload.get("characterType").asText();
+
+        ObjectNode response = mapper.createObjectNode();
+        ObjectNode responsePayload = mapper.createObjectNode();
+
+        try {
+            CharacterType characterType = CharacterType.valueOf(characterTypeString);
+            boolean success = lobbyManager.setCharacterTypeAndStatusReady(playerId, characterType);
+
+            if (success) {
+                dbService.saveGame(lobbyManager.getGame());
+
+                response.put("type", LobbyMessageType.SET_CHARACTER_TYPE_AND_STATUS_READY.toString());
+                responsePayload.put("playerId", playerId);
+                responsePayload.put("characterType", characterType.toString());
+                responsePayload.put("ready", true);
+            } else {
+                response.put("type", "SET_READY_ERROR");
+                responsePayload.put("reason", "Player not found");
+            }
+        } catch (IllegalArgumentException e) {
+            response.put("type", "SET_READY_ERROR");
+            responsePayload.put("reason", "Invalid character type");
+        }
+
+        response.set("payload", responsePayload);
+        return response;
+    }
+    public ObjectNode startGame(JsonNode payload) {
+        ObjectNode response = mapper.createObjectNode();
+        ObjectNode responsePayload = mapper.createObjectNode();
+
+        if (lobbyManager.canStartGame()) {
+            Game game = lobbyManager.getGame();
+            game.start();
+            dbService.saveGame(game);
+
+            response.put("type", LobbyMessageType.GAME_STARTED.toString());
+            responsePayload.put("gameId", game.getGameId());
+            responsePayload.put("status", "RUNNING");
+            response.set("payload", responsePayload);
+        } else {
+            response.put("type", LobbyMessageType.START_GAME_ERROR.toString());
+            responsePayload.put("reason", "Not all players are ready");
+            response.set("payload", responsePayload);
+        }
+
     public ObjectNode setReady(JsonNode payload) {
         String playerId = payload.get("playerId").asText();
         String characterType = payload.get("characterType").asText();
