@@ -1,7 +1,9 @@
 package at.aau.serg.websocketdemoserver.server;
 
+import at.aau.serg.websocketdemoserver.messaging.dtos.GameMessageType;
 import at.aau.serg.websocketdemoserver.messaging.dtos.LobbyMessageType;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
+import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -88,7 +90,7 @@ public class GameServerTest {
         ObjectNode response = gameServer.joinLobby(payload);
 
         JsonNode playerNode = response.get("payload").get("existingPlayers").get(0);
-        assertEquals(CharacterType.MRS_PINK.toString(), playerNode.get("charcterType").asText());
+        assertEquals(CharacterType.MRS_PINK.toString(), playerNode.get("characterType").asText());
     }
 
     @Test
@@ -146,5 +148,141 @@ public class GameServerTest {
         assertEquals("LEAVE_ERROR", response.get("type").asText());
         assertEquals("unknown", response.get("payload").get("playerId").asText());
         verify(dbService, never()).removePlayer(any());
+    }
+
+
+
+
+    @Test
+    public void testSetCharacterTypeAndStatusReady_Success() throws Exception {
+        when(lobbyManager.setCharacterTypeAndStatusReady("player1", CharacterType.MRS_PINK)).thenReturn(true);
+
+        JsonNode payload = mapper.readTree("{\"playerId\": \"player1\", \"characterType\": \"MRS_PINK\"}");
+        ObjectNode response = gameServer.setCharacterTypeAndStatusReady(payload);
+
+        assertEquals(LobbyMessageType.SET_CHARACTER_TYPE_AND_STATUS_READY.toString(), response.get("type").asText());
+        assertEquals("player1", response.get("payload").get("playerId").asText());
+        assertEquals("MRS_PINK", response.get("payload").get("characterType").asText());
+        assertTrue(response.get("payload").get("ready").asBoolean());
+        verify(dbService, times(1)).saveGame(any());
+    }
+
+    @Test
+    public void testSetCharacterTypeAndStatusReady_PlayerNotFound() throws Exception {
+        when(lobbyManager.setCharacterTypeAndStatusReady("player1", CharacterType.MRS_PINK)).thenReturn(false);
+
+        JsonNode payload = mapper.readTree("{\"playerId\": \"player1\", \"characterType\": \"MRS_PINK\"}");
+        ObjectNode response = gameServer.setCharacterTypeAndStatusReady(payload);
+
+        assertEquals("SET_READY_ERROR", response.get("type").asText());
+        assertEquals("Player not found", response.get("payload").get("reason").asText());
+    }
+
+    @Test
+    public void testSetCharacterTypeAndStatusReady_InvalidCharacterType() throws Exception {
+        JsonNode payload = mapper.readTree("{\"playerId\": \"player1\", \"characterType\": \"INVALID\"}");
+        ObjectNode response = gameServer.setCharacterTypeAndStatusReady(payload);
+
+        assertEquals("SET_READY_ERROR", response.get("type").asText());
+        assertEquals("Invalid character type", response.get("payload").get("reason").asText());
+    }
+
+    @Test
+    public void testStartGame_Success() throws Exception {
+        Game mockGame = mock(Game.class);
+        when(mockGame.getGameId()).thenReturn("game-1");
+        when(lobbyManager.canStartGame()).thenReturn(true);
+        when(lobbyManager.getGame()).thenReturn(mockGame);
+
+        JsonNode payload = mapper.readTree("{}");
+        ObjectNode response = gameServer.startGame(payload);
+
+        assertEquals(LobbyMessageType.GAME_STARTED.toString(), response.get("type").asText());
+        assertEquals("game-1", response.get("payload").get("gameId").asText());
+        assertEquals("RUNNING", response.get("payload").get("status").asText());
+        verify(mockGame, times(1)).start();
+        verify(dbService, times(1)).saveGame(mockGame);
+    }
+
+    @Test
+    public void testStartGame_NotAllReady() throws Exception {
+        when(lobbyManager.canStartGame()).thenReturn(false);
+
+        JsonNode payload = mapper.readTree("{}");
+        ObjectNode response = gameServer.startGame(payload);
+
+        assertEquals(LobbyMessageType.START_GAME_ERROR.toString(), response.get("type").asText());
+        assertEquals("Not all players are ready", response.get("payload").get("reason").asText());
+    }
+
+    @Test
+    public void testRollDice() throws Exception {
+        JsonNode payload = mapper.readTree("{}");
+        ObjectNode response = gameServer.rollDice(payload);
+
+        assertEquals(GameMessageType.ROLL_DICE.toString(), response.get("type").asText());
+        int value = response.get("payload").get("value").asInt();
+        assertTrue(value >= 1 && value <= 6);
+    }
+
+    @Test
+    public void testMove() throws Exception {
+        JsonNode payload = mapper.readTree("{\"playerId\": \"player1\", \"position\": \"A3\"}");
+        ObjectNode response = gameServer.move(payload);
+
+        assertEquals(GameMessageType.MOVE.toString(), response.get("type").asText());
+        assertEquals("player1", response.get("payload").get("playerId").asText());
+        assertEquals("A3", response.get("payload").get("position").asText());
+    }
+
+    @Test
+    public void testEnterRoom() throws Exception {
+        JsonNode payload = mapper.readTree("{\"playerId\": \"player1\", \"roomId\": \"KITCHEN\"}");
+        ObjectNode response = gameServer.enterRoom(payload);
+
+        assertEquals(GameMessageType.ENTER_ROOM.toString(), response.get("type").asText());
+        assertEquals("player1", response.get("payload").get("playerId").asText());
+        assertEquals("KITCHEN", response.get("payload").get("roomId").asText());
+    }
+
+    @Test
+    public void testTakeHiddenWay() throws Exception {
+        JsonNode payload = mapper.readTree("{\"playerId\": \"player1\"}");
+        ObjectNode response = gameServer.takeHiddenWay(payload);
+
+        assertEquals(GameMessageType.TAKE_HIDDEN_WAY.toString(), response.get("type").asText());
+        assertEquals("player1", response.get("payload").get("playerId").asText());
+    }
+
+    @Test
+    public void testHandleAccusation() throws Exception {
+        Game mockGame = mock(Game.class);
+        when(mockGame.getGameId()).thenReturn("game-1");
+        when(lobbyManager.getGame()).thenReturn(mockGame);
+
+        JsonNode payload = mapper.readTree("{\"accuserID\": \"player1\", \"suspect\": \"MRS_PINK\", \"room\": \"KITCHEN\", \"weapon\": \"KNIFE\"}");
+        ObjectNode response = gameServer.handleAccusation(payload);
+
+        assertEquals(GameMessageType.MAKE_ACCUSATION.toString(), response.get("type").asText());
+        assertEquals("player1", response.get("payload").get("accuserID").asText());
+        assertEquals("MRS_PINK", response.get("payload").get("suspect").asText());
+        assertEquals("KITCHEN", response.get("payload").get("room").asText());
+        assertEquals("KNIFE", response.get("payload").get("weapon").asText());
+    }
+
+    @Test
+    public void testHandleSuggestion() throws Exception {
+        Game mockGame = mock(Game.class);
+        when(mockGame.getGameId()).thenReturn("game-1");
+        when(lobbyManager.getGame()).thenReturn(mockGame);
+
+        JsonNode payload = mapper.readTree("{\"suggesterID\": \"player1\", \"suspect\": \"MRS_PINK\", \"room\": \"KITCHEN\", \"weapon\": \"KNIFE\"}");
+        ObjectNode response = gameServer.handleSuggestion(payload);
+
+        assertEquals(GameMessageType.MAKE_SUGGESTION.toString(), response.get("type").asText());
+        assertEquals("player1", response.get("payload").get("suggesterID").asText());
+        assertEquals("MRS_PINK", response.get("payload").get("suspect").asText());
+        assertEquals("KITCHEN", response.get("payload").get("room").asText());
+        assertEquals("KNIFE", response.get("payload").get("weapon").asText());
     }
 }
