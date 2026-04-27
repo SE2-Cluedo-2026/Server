@@ -17,26 +17,6 @@ public class WebSocketBrokerController {
     @Autowired
     private GameServer gameServer;
 
-    @MessageMapping("/hello")
-    @SendTo("/topic/hello-response")
-    public String handleHello(String text) {
-        // TODO handle the messages here
-        return "echo from broker: "+text;
-    }
-    @MessageMapping("/object")
-    @SendTo("/topic/rcv-object")
-    public StompMessage handleObject(StompMessage msg) {
-
-        return msg;
-    }
-/*
-    @MessageMapping("/join-lobby")
-    @SendTo("/topic/lobby-response")
-    public String handleJoinLobby(JoinLobbyMessage message) {
-        return gameServer.joinLobby(message);
-    }
-
- */
     @MessageMapping("/lobby")
     @SendTo("/topic/lobby-response")
     public ObjectNode routeLobbyMessage(LobbyMessage message) {
@@ -56,9 +36,6 @@ public class WebSocketBrokerController {
             case LEAVE_LOBBY -> {
                 return gameServer.leaveLobby(payload);
             }
-            case START_GAME -> {
-                return gameServer.startGame(payload);
-            }
         }
         return null;
     }
@@ -76,7 +53,7 @@ public class WebSocketBrokerController {
                 return gameServer.move(payload);
             }
             case END_TURN -> {
-                return gameServer.endTurn(payload);
+                // return gameServer.endTurn(payload);
             }
             case ENTER_ROOM -> {
                 return gameServer.enterRoom(payload);

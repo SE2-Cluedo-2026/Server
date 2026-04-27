@@ -131,6 +131,10 @@ public class GameServer {
             response.set("payload", responsePayload);
         }
 
+        return response;
+    }
+
+    /*
     public ObjectNode setReady(JsonNode payload) {
         String playerId = payload.get("playerId").asText();
         String characterType = payload.get("characterType").asText();
@@ -149,6 +153,8 @@ public class GameServer {
         return response;
     }
 
+
+
     public ObjectNode startGame(JsonNode payload) {
         lobbyManager.startGame();
 
@@ -160,7 +166,7 @@ public class GameServer {
         response.set("payload", responsePayload);
         return response;
     }
-
+    */
 
 
 
@@ -192,6 +198,7 @@ public class GameServer {
         return response;
     }
 
+    /*
     public ObjectNode endTurn(JsonNode payload) {
         int previousPlayerIndex = lobbyManager.getCurrentPlayerIndex();
         lobbyManager.nextTurn();
@@ -207,6 +214,7 @@ public class GameServer {
         response.set("payload", responsePayload);
         return response;
     }
+     */
 
     public ObjectNode enterRoom(JsonNode payload) {
         String playerId = payload.get("playerId").asText();
