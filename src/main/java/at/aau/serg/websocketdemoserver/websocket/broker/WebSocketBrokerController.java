@@ -1,8 +1,6 @@
 package at.aau.serg.websocketdemoserver.websocket.broker;
 
-import at.aau.serg.websocketdemoserver.messaging.dtos.GameMessage;
-import at.aau.serg.websocketdemoserver.messaging.dtos.LobbyMessage;
-import at.aau.serg.websocketdemoserver.messaging.dtos.StompMessage;
+import at.aau.serg.websocketdemoserver.messaging.dtos.*;
 import at.aau.serg.websocketdemoserver.server.GameServer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;

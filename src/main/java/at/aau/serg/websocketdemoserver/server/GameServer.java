@@ -1,5 +1,4 @@
 package at.aau.serg.websocketdemoserver.server;
-import at.aau.serg.websocketdemoserver.messaging.dtos.JoinLobbyMessage;
 import at.aau.serg.websocketdemoserver.messaging.dtos.LobbyMessageType;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.game.Game;
