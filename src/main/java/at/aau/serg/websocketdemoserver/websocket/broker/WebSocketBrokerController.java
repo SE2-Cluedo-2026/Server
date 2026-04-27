@@ -17,7 +17,8 @@ import tools.jackson.databind.node.ObjectNode;
 public class WebSocketBrokerController {
     @Autowired
     private GameServer gameServer;
-
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
     @MessageMapping("/lobby")
     @SendTo("/topic/lobby-response")
     public ObjectNode routeLobbyMessage(LobbyMessage message) {
@@ -31,6 +32,11 @@ public class WebSocketBrokerController {
             }
             case SET_CHARACTER_TYPE_AND_STATUS_READY -> {
                 // TODO: Implement the other LobbyMessage Types
+            }
+            case START_GAME -> {
+                ObjectNode response = gameServer.startGame(payload);
+                messagingTemplate.convertAndSend("/topic/game-response", response);
+                return null;
             }
             case LEAVE_LOBBY -> {
                 return gameServer.leaveLobby(payload);

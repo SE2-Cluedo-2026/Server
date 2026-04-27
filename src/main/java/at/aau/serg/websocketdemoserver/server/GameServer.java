@@ -84,4 +84,11 @@ public class GameServer {
         return response;
     }
 
+    public ObjectNode startGame(JsonNode payload) {
+        ObjectNode response = mapper.createObjectNode();
+        response.put("type", GameMessageType.GAME_STARTED.toString());
+        response.set("payload", mapper.createObjectNode());
+        return response;
+    }
+
 }

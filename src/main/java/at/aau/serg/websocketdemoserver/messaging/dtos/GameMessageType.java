@@ -1,6 +1,7 @@
 package at.aau.serg.websocketdemoserver.messaging.dtos;
 
 public enum GameMessageType {
+  GAME_STARTED,
   ROLL_DICE,
   MOVE,
   END_TURN,
