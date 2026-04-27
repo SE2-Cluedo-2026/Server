@@ -1,7 +1,10 @@
 package at.aau.serg.websocketdemoserver.model.game;
 
+import at.aau.serg.websocketdemoserver.model.board.Position;
 import at.aau.serg.websocketdemoserver.model.cards.Card;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
+import at.aau.serg.websocketdemoserver.model.enums.PositionType;
+import at.aau.serg.websocketdemoserver.model.enums.RoomType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -35,11 +38,28 @@ public class PlayerTest {
     }
 
     @Test
-    public void testSetAndGetCurrentPosition() {
+    public void testSetAndGetCurrentPositionBoard() {
         Player player = new Player("1");
-        player.setCurrentPosition("A3");
+        Position position = new Position();
+        position.setBoardPosition(3, 5);
+        player.setCurrentPosition(position);
 
-        assertEquals("A3", player.getCurrentPosition());
+        Position result = player.getCurrentPosition();
+        assertEquals(PositionType.BOARD, result.getPositionType());
+        assertEquals(3, result.getX());
+        assertEquals(5, result.getY());
+    }
+
+    @Test
+    public void testSetAndGetCurrentPositionRoom() {
+        Player player = new Player("1");
+        Position position = new Position();
+        position.setRoomType(RoomType.KITCHEN); // passe den RoomType-Wert an dein Enum an
+        player.setCurrentPosition(position);
+
+        Position result = player.getCurrentPosition();
+        assertEquals(PositionType.ROOM, result.getPositionType());
+        assertEquals(RoomType.KITCHEN, result.getRoom());
     }
 
     @Test
