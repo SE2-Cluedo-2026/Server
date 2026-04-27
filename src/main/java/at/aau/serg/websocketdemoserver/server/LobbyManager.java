@@ -42,11 +42,18 @@ public class LobbyManager {
     public void joinLobby() {
         //TODO:
     }
-    public void setReady(){
-        //TODO:
+    public boolean setCharacterTypeAndStatusReady(String playerId, CharacterType characterType) {
+        for (Player player : game.getPlayers()) {
+            if (player.getPlayerId().equals(playerId)) {
+                player.setCharacter(characterType);
+                player.markReady();
+                return true;
+            }
+        }
+        return false;
     }
     public boolean canStartGame() {
-        //TODO:
-        return false;
+        return !game.getPlayers().isEmpty() &&
+                game.getPlayers().stream().allMatch(Player::isReady);
     }
 }

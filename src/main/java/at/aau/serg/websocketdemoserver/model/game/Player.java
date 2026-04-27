@@ -43,9 +43,10 @@ public class Player {
         this.cheatUsed = false;
         this.accusationUsed = false;
     }
-
+    public void setCharacter(CharacterType character) {
+        this.character = character;
+    }
     public void markReady() {
-        // TODO
         this.ready = true;
     }
 

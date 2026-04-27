@@ -20,6 +20,7 @@ public class Game {
     private Board board;
     private CaseFile caseFile;
     private TurnManager turnManager;
+    private String gameId = "game1";
 
     private Game() {
         this.status = GameStatus.LOBBY;
@@ -59,7 +60,9 @@ public class Game {
     }
 
     public void start() {
-        // TODO
+        this.status = GameStatus.RUNNING;
+        this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
+        this.turnManager = TurnManager.getINSTANCE();
     }
 
     public void makeSuggestion() {
@@ -87,7 +90,7 @@ public class Game {
     public GameStatus getStatus() {
         return status;
     }
-
+    public String getGameId() { return gameId; }
     public TurnPhase getCurrentPhase() {
         return currentPhase;
     }
