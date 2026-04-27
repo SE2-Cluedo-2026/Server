@@ -25,4 +25,8 @@ public class GameManager {
     public Game getGame(){
         return game;
     }
+
+    public void startGame() {
+        //TODO:
+    }
 }
