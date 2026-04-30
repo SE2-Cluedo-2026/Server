@@ -13,4 +13,9 @@ public class SuspectCard extends Card {
     public CharacterType getSuspect() {
         return suspect;
     }
+
+    @Override
+    public String toString() {
+        return super.toString() + ", suspect=" + suspect;
+    }
 }
