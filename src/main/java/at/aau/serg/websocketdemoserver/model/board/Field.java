@@ -7,14 +7,24 @@ import lombok.Setter;
 public class Field {
     @Getter
     private final FieldType fieldType;
+    @Getter
+    private final int row;
+    @Getter
+    private final int col;
     @Setter
     private Player player = null;
 
-    public Field(FieldType fieldType) {
+    public Field(FieldType fieldType, int row, int col) {
         if (fieldType == null) {
             throw new IllegalArgumentException("fieldType cannot be null");
         }
         this.fieldType = fieldType;
+        this.row = row;
+        this.col = col;
+    }
+
+    public Field(FieldType fieldType) {
+        this(fieldType, -1, -1);
     }
 
     public void removePlayer() {
