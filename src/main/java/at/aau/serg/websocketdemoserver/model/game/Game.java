@@ -63,6 +63,7 @@ public class Game {
         this.status = GameStatus.RUNNING;
         this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
         this.turnManager = TurnManager.getINSTANCE();
+        this.turnManager.startTurnOrder();
     }
 
     public void makeSuggestion() {
@@ -72,9 +73,12 @@ public class Game {
     public void makeAccusation() {
         // TODO
     }
-
+    public Player getCurrentPlayer() {
+        return turnManager.getCurrentPlayer(players);
+    }
     public void endTurn() {
-        // TODO
+        turnManager.nextTurn(players.size());
+        this.currentPhase = turnManager.getPhase();
     }
     public List<CharacterType> getAvailableCharacters() {
         Set<CharacterType> takenCharacters = players.stream()
