@@ -100,6 +100,26 @@ public class GameServer {
                 responsePayload.put("playerId", playerId);
                 responsePayload.put("characterType", characterType.toString());
                 responsePayload.put("ready", true);
+                // verfügbare Charaktere zurückschicken
+                ArrayNode availableCharacters = mapper.createArrayNode();
+                for (CharacterType c : lobbyManager.getAvailableCharacters()) {
+                    availableCharacters.add(c.toString());
+                }
+                responsePayload.set("availableCharacters", availableCharacters);
+
+                // alle Spieler zurückschicken
+                ArrayNode existingPlayers = mapper.createArrayNode();
+                for (Player p : lobbyManager.getPlayers()) {
+                    ObjectNode playerNode = mapper.createObjectNode();
+                    playerNode.put("playerId", p.getPlayerId());
+                    playerNode.put("ready", p.isReady());
+                    if (p.getCharacter() != null) {
+                        playerNode.put("character", p.getCharacter().toString());
+                    }
+                    existingPlayers.add(playerNode);
+                }
+                responsePayload.set("existingPlayers", existingPlayers);
+
             } else {
                 response.put("type", "SET_READY_ERROR");
                 responsePayload.put("reason", "Player not found");
@@ -119,7 +139,7 @@ public class GameServer {
         if (lobbyManager.canStartGame()) {
             Game game = lobbyManager.getGame();
             game.start();
-            dbService.saveGame(game);
+           // dbService.saveGame(game);
 
             response.put("type", LobbyMessageType.GAME_STARTED.toString());
             responsePayload.put("gameId", game.getGameId());
@@ -280,4 +300,5 @@ public class GameServer {
         response.set("payload", responsePayload);
         return response;
     }
+    //--------------------------------------------------------Set Ready Button ---------------------------------------------------------------
 }
