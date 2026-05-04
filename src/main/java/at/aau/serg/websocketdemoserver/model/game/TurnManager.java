@@ -2,50 +2,50 @@ package at.aau.serg.websocketdemoserver.model.game;
 
 import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
 import lombok.*;
-
-import java.util.List;
 import java.util.Random;
+import java.util.List;
+
+
 public class TurnManager {
     @Getter
     private static final TurnManager INSTANCE = new TurnManager();
 
-    private int currentPlayerId;
-    private int diceValue;
-    private TurnPhase phase;
     private final Random random = new Random();
 
+    private int currentPlayerIndex = 0;
+
+    private int diceValue;
+    private TurnPhase phase;
+
     private TurnManager() {
-        this.currentPlayerId = 0; this.diceValue = 0; this.phase = TurnPhase.WAITING_FOR_ROLL;
-    }
-    public void startTurnOrder(){
-        this.currentPlayerId = 0; this.diceValue = 0; this.phase = TurnPhase.WAITING_FOR_ROLL;
-    }
-    public void nextTurn(int playerCount) {
-        if(playerCount <= 0){
-            throw new IllegalStateException("No players available");
-        }
-        this.currentPlayerId = (currentPlayerId + 1) % playerCount; this.diceValue = 0; this.phase = TurnPhase.WAITING_FOR_ROLL;
-    }
-    public void nextTurn() {
-        nextTurn(4);
-    }
-    public Player getCurrentPlayer(List<Player> players) {
-        if(players == null || players.isEmpty()) {
-            return null;
-        }
-        return players.get(currentPlayerId);
-    }
-    public int rollDice() {
-        if(phase != TurnPhase.WAITING_FOR_ROLL) {
-            throw new IllegalStateException("Dice already rolled");
-        }
-        this.diceValue = random.nextInt(6) + 1;
-        this.phase = TurnPhase.WAITING_FOR_MOVE;
-        return diceValue;
+        this.phase = TurnPhase.WAITING_FOR_ROLL;
     }
 
+    public void nextTurn(List<Player> players) {
+        if (players == null || players.isEmpty()) return;
+        for (int i = 0; i < players.size(); i++) {
+            currentPlayerIndex = (currentPlayerIndex + 1) % players.size();
+            if (!players.get(currentPlayerIndex).isEliminated()) {
+                break;
+            }
+        }
+        diceValue = 0;
+        phase = TurnPhase.WAITING_FOR_ROLL;
+    }
+
+    public int rollDice() {
+        int die1 = random.nextInt(6) + 1;
+        int die2 = random.nextInt(6) + 1;
+        diceValue = die1 + die2;
+        phase = TurnPhase.WAITING_FOR_MOVE;
+        return diceValue;
+    }
+    public String getCurrentPlayerId(List<Player> players) {
+        if (players == null || players.isEmpty()) return null;
+        return players.get(currentPlayerIndex).getPlayerId();
+    }
     public int getCurrentPlayerId() {
-        return currentPlayerId;
+        return currentPlayerIndex;
     }
 
     public int getDiceValue() {
