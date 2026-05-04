@@ -77,7 +77,7 @@ public class Game {
         return turnManager.getCurrentPlayer(players);
     }
     public void endTurn() {
-        turnManager.nextTurn(players.size());
+        turnManager.nextTurn(players);
         this.currentPhase = turnManager.getPhase();
     }
     public List<CharacterType> getAvailableCharacters() {

@@ -40,6 +40,17 @@ public class TurnManager {
         phase = TurnPhase.WAITING_FOR_MOVE;
         return diceValue;
     }
+    public void startTurnOrder() {
+        currentPlayerIndex = 0;
+        diceValue = 0;
+        phase = TurnPhase.WAITING_FOR_ROLL;
+    }
+    public Player getCurrentPlayer(List<Player> players){
+        if(players == null || players.isEmpty()) {
+            return null;
+        }
+        return players.get(currentPlayerIndex);
+    }
     public String getCurrentPlayerId(List<Player> players) {
         if (players == null || players.isEmpty()) return null;
         return players.get(currentPlayerIndex).getPlayerId();
