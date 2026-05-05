@@ -2,6 +2,8 @@ services:
   db:
     image: mysql:8.0
     restart: "no"
+    ports:
+      - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: rootpass
       MYSQL_DATABASE: meinedb
@@ -9,6 +11,7 @@ services:
       MYSQL_PASSWORD: springpass
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
