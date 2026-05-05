@@ -23,7 +23,7 @@ public class GameTest {
 
     @Test
     public void TestConstructorDefaultValues() {
-        // assertEquals(GameStatus.LOBBY, game.getStatus());
+        assertEquals(GameStatus.LOBBY, game.getStatus());
         assertEquals(TurnPhase.WAITING_FOR_ROLL, game.getCurrentPhase());
         assertNotNull(game.getPlayers());
         assertNotNull(game.getBoard());

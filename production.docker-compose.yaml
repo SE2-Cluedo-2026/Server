@@ -19,8 +19,8 @@ services:
       retries: 5
 
   server:
-    build: .   # use image for deployment and build: . for local testing
-    #image: ghcr.io/SE2-Cluedo-2026/Server:latest
+    # build: .   # use image for deployment and build: . for local testing
+    image: ghcr.io/SE2-Cluedo-2026/Server:latest
     restart: unless-stopped
     ports:
       - "53211:8080"
