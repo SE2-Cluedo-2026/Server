@@ -30,6 +30,16 @@ public class Game {
         this.turnManager = turnManager.getINSTANCE();
     }
 
+    // only for testing
+    public void resetGame() {
+        this.status = GameStatus.LOBBY;
+        this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
+        this.players = new ArrayList<>();
+        this.board = board.getINSTANCE();
+        this.turnManager = turnManager.getINSTANCE();
+        this.caseFile = null;
+    }
+
     public void addPlayer(Player player) {
             this.players.add(player);
     }

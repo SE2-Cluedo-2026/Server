@@ -17,6 +17,7 @@ public class GameTest {
     @BeforeEach
     public void setUp() {
         game = Game.getINSTANCE();
+        game.resetGame();
         game.getPlayers().clear();
     }
 
