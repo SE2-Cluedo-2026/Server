@@ -65,4 +65,13 @@ public class DeckTest {
         assertEquals(weaponCards, deck.getWeaponCards());
     }
 
+    @Test
+    public void TestDefaultDeckConstructorCreatesAllCards() {
+        Deck deck = new Deck();
+
+        assertEquals(CharacterType.values().length, deck.getSuspectCards().size());
+        assertEquals(RoomType.values().length, deck.getRoomCards().size());
+        assertEquals(WeaponType.values().length, deck.getWeaponCards().size());
+    }
+
 }
