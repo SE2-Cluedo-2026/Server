@@ -36,6 +36,16 @@ public class Game {
             this.players.add(player);
     }
 
+    public void reset() {
+        this.status = GameStatus.LOBBY;
+        this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
+        this.players.clear();
+        this.board = Board.getINSTANCE();
+        this.turnManager = TurnManager.getINSTANCE();
+        this.deck = new Deck();
+        this.caseFile = null;
+    }
+
     public boolean playerAlreadyJoined(String playerId) {
         for(Player p : players) {
             if(p.getPlayerId().equals(playerId)) {
@@ -65,7 +75,24 @@ public class Game {
         this.status = GameStatus.RUNNING;
         this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
         this.turnManager = TurnManager.getINSTANCE();
+        this.deck = new Deck();
         this.caseFile = deck.createCaseFile();
+    }
+
+    public void finish() {
+        this.status = GameStatus.FINISHED;
+
+        if (this.caseFile != null) {
+            this.caseFile.clear();
+        }
+    }
+
+    public void abort() {
+        this.status = GameStatus.ABORTED;
+
+        if (this.caseFile != null) {
+            this.caseFile.clear();
+        }
     }
 
     public void makeSuggestion() {
