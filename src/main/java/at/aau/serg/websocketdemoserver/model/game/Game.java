@@ -77,6 +77,7 @@ public class Game {
         this.turnManager = TurnManager.getINSTANCE();
         this.deck = new Deck();
         this.caseFile = deck.createCaseFile();
+        this.deck.dealCards(this.players);
     }
 
     public void finish() {

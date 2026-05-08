@@ -6,7 +6,8 @@ import at.aau.serg.websocketdemoserver.model.cards.WeaponCard;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.enums.RoomType;
 import at.aau.serg.websocketdemoserver.model.enums.WeaponType;
-
+import at.aau.serg.websocketdemoserver.model.cards.Card;
+import java.util.Collections;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -58,8 +59,34 @@ public class Deck {
         return new CaseFile(suspectCard, roomCard, weaponCard);
     }
 
+    public void dealCards(List<Player> players) {
+        if (players == null || players.isEmpty()) {
+            return;
+        }
+
+        List<Card> remainingCards = new ArrayList<>();
+        remainingCards.addAll(suspectCards);
+        remainingCards.addAll(roomCards);
+        remainingCards.addAll(weaponCards);
+
+        Collections.shuffle(remainingCards);
+
+        for (Player player : players) {
+            player.setCards(new ArrayList<>());
+        }
+
+        for (int i = 0; i < remainingCards.size(); i++) {
+            Player player = players.get(i % players.size());
+            player.getCards().add(remainingCards.get(i));
+        }
+
+        suspectCards.clear();
+        roomCards.clear();
+        weaponCards.clear();
+    }
+
     public void dealCards() {
-        // TODO
+        dealCards(new ArrayList<>());
     }
 
     public List<SuspectCard> getSuspectCards() {
