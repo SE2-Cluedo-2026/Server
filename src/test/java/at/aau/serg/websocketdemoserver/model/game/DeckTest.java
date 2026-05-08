@@ -74,4 +74,29 @@ public class DeckTest {
         assertEquals(WeaponType.values().length, deck.getWeaponCards().size());
     }
 
+    @Test
+    public void testCreateCaseFileRemovesOneCardFromEachList() {
+        Deck deck = new Deck();
+
+        int suspectCount = deck.getSuspectCards().size();
+        int roomCount = deck.getRoomCards().size();
+        int weaponCount = deck.getWeaponCards().size();
+
+        CaseFile caseFile = deck.createCaseFile();
+
+        assertNotNull(caseFile);
+        assertTrue(caseFile.isComplete());
+
+        assertEquals(suspectCount - 1, deck.getSuspectCards().size());
+        assertEquals(roomCount - 1, deck.getRoomCards().size());
+        assertEquals(weaponCount - 1, deck.getWeaponCards().size());
+    }
+
+    @Test
+    public void testCreateCaseFileReturnsNullWhenSuspectCardsAreEmpty() {
+        Deck deck = new Deck(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+
+        assertNull(deck.createCaseFile());
+    }
+
 }

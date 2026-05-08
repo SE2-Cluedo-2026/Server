@@ -17,7 +17,7 @@ public class GameTest {
     @BeforeEach
     public void setUp() {
         game = Game.getINSTANCE();
-        game.getPlayers().clear();
+        game.reset();
     }
 
     @Test
@@ -107,8 +107,13 @@ public class GameTest {
     }
 
     @Test
-    public void TestStart() {
-        assertDoesNotThrow(() -> game.start());
+    public void TestStartCreatesCompleteCaseFile() {
+        game.start();
+
+        assertEquals(GameStatus.RUNNING, game.getStatus());
+        assertEquals(TurnPhase.WAITING_FOR_ROLL, game.getCurrentPhase());
+        assertNotNull(game.getCaseFile());
+        assertTrue(game.getCaseFile().isComplete());
     }
 
     @Test
@@ -163,5 +168,39 @@ public class GameTest {
         game.start();
 
         assertNotNull(game.getCaseFile());
+    }
+
+    @Test
+    public void testStartCreatesCompleteCaseFile() {
+        game.start();
+
+        assertEquals(GameStatus.RUNNING, game.getStatus());
+        assertEquals(TurnPhase.WAITING_FOR_ROLL, game.getCurrentPhase());
+        assertNotNull(game.getCaseFile());
+        assertTrue(game.getCaseFile().isComplete());
+    }
+
+    @Test
+    public void testFinishClearsCaseFile() {
+        game.start();
+
+        assertNotNull(game.getCaseFile());
+
+        game.finish();
+
+        assertEquals(GameStatus.FINISHED, game.getStatus());
+        assertFalse(game.getCaseFile().isComplete());
+    }
+
+    @Test
+    public void testAbortClearsCaseFile() {
+        game.start();
+
+        assertNotNull(game.getCaseFile());
+
+        game.abort();
+
+        assertEquals(GameStatus.ABORTED, game.getStatus());
+        assertFalse(game.getCaseFile().isComplete());
     }
 }
