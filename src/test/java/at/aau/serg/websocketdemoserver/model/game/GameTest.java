@@ -203,4 +203,22 @@ public class GameTest {
         assertEquals(GameStatus.ABORTED, game.getStatus());
         assertFalse(game.getCaseFile().isComplete());
     }
+
+    @Test
+    public void TestStartDealsCardsToPlayers() {
+        Player playerOne = createPlayer("1", CharacterType.MRS_PINK);
+        Player playerTwo = createPlayer("2", CharacterType.DR_BLUE);
+
+        game.addPlayer(playerOne);
+        game.addPlayer(playerTwo);
+
+        game.start();
+
+        assertNotNull(playerOne.getCards());
+        assertNotNull(playerTwo.getCards());
+
+        int totalCards = playerOne.getCards().size() + playerTwo.getCards().size();
+
+        assertEquals(12, totalCards);
+    }
 }

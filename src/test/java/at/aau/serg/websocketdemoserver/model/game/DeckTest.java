@@ -99,4 +99,43 @@ public class DeckTest {
         assertNull(deck.createCaseFile());
     }
 
+    @Test
+    public void TestDealCardsDistributesAllRemainingCardsToPlayers() {
+        Deck deck = new Deck();
+
+        deck.createCaseFile();
+
+        Player playerOne = new Player("1");
+        Player playerTwo = new Player("2");
+
+        List<Player> players = new ArrayList<>();
+        players.add(playerOne);
+        players.add(playerTwo);
+
+        deck.dealCards(players);
+
+        int playerOneCards = playerOne.getCards().size();
+        int playerTwoCards = playerTwo.getCards().size();
+
+        assertEquals(12, playerOneCards + playerTwoCards);
+
+        assertTrue(playerOneCards == 6 || playerOneCards == 7);
+        assertTrue(playerTwoCards == 6 || playerTwoCards == 7);
+
+        assertTrue(deck.getSuspectCards().isEmpty());
+        assertTrue(deck.getRoomCards().isEmpty());
+        assertTrue(deck.getWeaponCards().isEmpty());
+    }
+
+    @Test
+    public void TestDealCardsDoesNothingWhenPlayersAreEmpty() {
+        Deck deck = new Deck();
+
+        deck.createCaseFile();
+
+        List<Player> players = new ArrayList<>();
+
+        assertDoesNotThrow(() -> deck.dealCards(players));
+    }
+
 }
