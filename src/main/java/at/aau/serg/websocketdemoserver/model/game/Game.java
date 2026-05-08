@@ -19,6 +19,7 @@ public class Game {
     private List<Player> players;
     private Board board;
     private CaseFile caseFile;
+    private Deck deck;
     private TurnManager turnManager;
     private String gameId = "game1";
 
@@ -28,6 +29,7 @@ public class Game {
         this.players = new ArrayList<>();
         this.board = board.getINSTANCE();
         this.turnManager = turnManager.getINSTANCE();
+        this.deck = new Deck();
     }
 
     public void addPlayer(Player player) {
@@ -63,6 +65,7 @@ public class Game {
         this.status = GameStatus.RUNNING;
         this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
         this.turnManager = TurnManager.getINSTANCE();
+        this.caseFile = deck.createCaseFile();
     }
 
     public void makeSuggestion() {
@@ -109,5 +112,9 @@ public class Game {
 
     public TurnManager getTurnManager() {
         return turnManager;
+    }
+
+    public Deck getDeck() {
+        return deck;
     }
 }

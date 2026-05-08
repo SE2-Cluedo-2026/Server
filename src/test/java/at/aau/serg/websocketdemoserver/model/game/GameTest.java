@@ -157,4 +157,11 @@ public class GameTest {
         player.setCharacter(characterType);
         return player;
     }
+
+    @Test
+    public void TestStartCreatesCaseFile() {
+        game.start();
+
+        assertNotNull(game.getCaseFile());
+    }
 }
