@@ -113,9 +113,12 @@ public class Game {
     public void makeAccusation() {
         // TODO
     }
-
+    public Player getCurrentPlayer() {
+        return turnManager.getCurrentPlayer(players);
+    }
     public void endTurn() {
-        // TODO
+        turnManager.nextTurn(players);
+        this.currentPhase = turnManager.getPhase();
     }
     public List<CharacterType> getAvailableCharacters() {
         Set<CharacterType> takenCharacters = players.stream()
