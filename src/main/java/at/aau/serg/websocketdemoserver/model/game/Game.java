@@ -19,6 +19,7 @@ public class Game {
     private List<Player> players;
     private Board board;
     private CaseFile caseFile;
+    private Deck deck;
     private TurnManager turnManager;
     private String gameId = "game1";
 
@@ -28,10 +29,31 @@ public class Game {
         this.players = new ArrayList<>();
         this.board = board.getINSTANCE();
         this.turnManager = turnManager.getINSTANCE();
+        this.deck = new Deck();
+    }
+
+    // only for testing
+    public void resetGame() {
+        this.status = GameStatus.LOBBY;
+        this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
+        this.players = new ArrayList<>();
+        this.board = board.getINSTANCE();
+        this.turnManager = turnManager.getINSTANCE();
+        this.caseFile = null;
     }
 
     public void addPlayer(Player player) {
             this.players.add(player);
+    }
+
+    public void reset() {
+        this.status = GameStatus.LOBBY;
+        this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
+        this.players.clear();
+        this.board = Board.getINSTANCE();
+        this.turnManager = TurnManager.getINSTANCE();
+        this.deck = new Deck();
+        this.caseFile = null;
     }
 
     public boolean playerAlreadyJoined(String playerId) {
@@ -63,7 +85,25 @@ public class Game {
         this.status = GameStatus.RUNNING;
         this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
         this.turnManager = TurnManager.getINSTANCE();
-        this.turnManager.startTurnOrder();
+        this.deck = new Deck();
+        this.caseFile = deck.createCaseFile();
+        this.deck.dealCards(this.players);
+    }
+
+    public void finish() {
+        this.status = GameStatus.FINISHED;
+
+        if (this.caseFile != null) {
+            this.caseFile.clear();
+        }
+    }
+
+    public void abort() {
+        this.status = GameStatus.ABORTED;
+
+        if (this.caseFile != null) {
+            this.caseFile.clear();
+        }
     }
 
     public void makeSuggestion() {
@@ -113,5 +153,9 @@ public class Game {
 
     public TurnManager getTurnManager() {
         return turnManager;
+    }
+
+    public Deck getDeck() {
+        return deck;
     }
 }

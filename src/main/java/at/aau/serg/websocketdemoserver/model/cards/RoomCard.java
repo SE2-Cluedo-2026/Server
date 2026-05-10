@@ -13,4 +13,9 @@ public class RoomCard extends Card {
     public RoomType getRoom() {
         return room;
     }
+
+    @Override
+    public String toString() {
+        return super.toString() + ", room=" + room;
+    }
 }

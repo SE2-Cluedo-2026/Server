@@ -9,6 +9,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import at.aau.serg.websocketdemoserver.model.cards.Card;
 
 @Service
 public class DatabaseService {
@@ -19,6 +20,8 @@ public class DatabaseService {
   public void saveGame(Game game) {
     saveGameState(game);
     savePlayers(game.getPlayers());
+    savePlayerCards(game.getPlayers());
+
     if(!game.getStatus().equals(GameStatus.LOBBY)) {
       saveTurnManager(game.getTurnManager());
       saveCaseFile(game.getCaseFile());
@@ -64,6 +67,45 @@ public class DatabaseService {
       );
     }
   }
+
+  private void savePlayerCards(List<Player> players) {
+    jdbc.update("DELETE FROM player_cards WHERE game_id = ?", GAME_ID);
+
+    for (Player p : players) {
+      if (p.getCards() == null) {
+        continue;
+      }
+
+      for (Card c : p.getCards()) {
+        jdbc.update(
+                "INSERT INTO player_cards (player_id, game_id, card_id, card_name, card_type) VALUES (?, ?, ?, ?, ?)",
+                p.getPlayerId(),
+                GAME_ID,
+                c.getCardId(),
+                c.getName(),
+                c.getClass().getSimpleName()
+        );
+      }
+    }
+  }
+
+  public void saveSeenCards(String playerId, List<Card> cards) {
+    if (cards == null) {
+      return;
+    }
+
+    for (Card card : cards) {
+      jdbc.update(
+              "INSERT INTO seen_cards (player_id, game_id, card_id, card_name, card_type) VALUES (?, ?, ?, ?, ?)",
+              playerId,
+              GAME_ID,
+              card.getCardId(),
+              card.getName(),
+              card.getClass().getSimpleName()
+      );
+    }
+  }
+
 
   public void removePlayer(String playerId) {
     jdbc.update("DELETE FROM players WHERE player_id = ?", playerId);

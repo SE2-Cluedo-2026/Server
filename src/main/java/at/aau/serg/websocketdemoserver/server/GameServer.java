@@ -9,6 +9,12 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.*;
 import tools.jackson.databind.node.*;
 import at.aau.serg.websocketdemoserver.messaging.dtos.GameMessageType;
+import at.aau.serg.websocketdemoserver.model.cards.Card;
+import at.aau.serg.websocketdemoserver.model.enums.RoomType;
+import at.aau.serg.websocketdemoserver.model.enums.WeaponType;
+import at.aau.serg.websocketdemoserver.model.game.Suggestion;
+import at.aau.serg.websocketdemoserver.model.game.SuggestionResolver;
+
 @Service
 public class GameServer {
     @Autowired
@@ -124,6 +130,32 @@ public class GameServer {
             response.put("type", LobbyMessageType.GAME_STARTED.toString());
             responsePayload.put("gameId", game.getGameId());
             responsePayload.put("status", "RUNNING");
+
+            ArrayNode playersArray = mapper.createArrayNode();
+
+            for (Player p : game.getPlayers()) {
+                ObjectNode playerNode = mapper.createObjectNode();
+                playerNode.put("playerId", p.getPlayerId());
+
+                ArrayNode cardsArray = mapper.createArrayNode();
+
+                if (p.getCards() != null) {
+                    for (Card c : p.getCards()) {
+                        ObjectNode cardNode = mapper.createObjectNode();
+                        cardNode.put("cardId", c.getCardId());
+                        cardNode.put("name", c.getName());
+                        cardNode.put("type", c.getClass().getSimpleName());
+
+                        cardsArray.add(cardNode);
+                    }
+                }
+
+                playerNode.set("cards", cardsArray);
+                playersArray.add(playerNode);
+            }
+
+            responsePayload.set("players", playersArray);
+
             response.set("payload", responsePayload);
         } else {
             response.put("type", LobbyMessageType.START_GAME_ERROR.toString());
@@ -263,20 +295,89 @@ public class GameServer {
 
 
     public ObjectNode handleSuggestion(JsonNode payload) {
-        String suggesterID = payload.get("suggesterID").asText();
-        String suspect = payload.get("suspect").asText();
-        String room = payload.get("room").asText();
-        String weapon = payload.get("weapon").asText();
-
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
-        responsePayload.put("gameID", lobbyManager.getGame().getGameId());
-        responsePayload.put("suggesterID", suggesterID);
-        responsePayload.put("suspect", suspect);
-        responsePayload.put("room", room);
-        responsePayload.put("weapon", weapon);
 
-        response.put("type", GameMessageType.MAKE_SUGGESTION.toString());
+        try {
+            String suggesterID = payload.get("suggesterID").asText();
+            CharacterType suspect = CharacterType.valueOf(payload.get("suspect").asText());
+            RoomType room = RoomType.valueOf(payload.get("room").asText());
+            WeaponType weapon = WeaponType.valueOf(payload.get("weapon").asText());
+
+            Game game = lobbyManager.getGame();
+
+            if (!game.getStatus().toString().equals("RUNNING")) {
+                response.put("type", GameMessageType.SUGGESTION_ERROR.toString());
+                responsePayload.put("reason", "Game is not running");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            Player suggester = null;
+
+            for (Player p : game.getPlayers()) {
+                if (p.getPlayerId().equals(suggesterID)) {
+                    suggester = p;
+                    break;
+                }
+            }
+
+            if (suggester == null) {
+                response.put("type", GameMessageType.SUGGESTION_ERROR.toString());
+                responsePayload.put("reason", "Suggester not found");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            if (suggester.isEliminated()) {
+                response.put("type", GameMessageType.SUGGESTION_ERROR.toString());
+                responsePayload.put("reason", "Eliminated players cannot make suggestions");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            Suggestion suggestion = new Suggestion(suggester, suspect, room, weapon);
+            SuggestionResolver resolver = new SuggestionResolver();
+
+            Player responder = resolver.resolveSuggestion(suggestion, game.getPlayers());
+
+            response.put("type", GameMessageType.SUGGESTION_RESULT.toString());
+            responsePayload.put("gameID", game.getGameId());
+            responsePayload.put("suggesterID", suggesterID);
+            responsePayload.put("suspect", suspect.toString());
+            responsePayload.put("room", room.toString());
+            responsePayload.put("weapon", weapon.toString());
+
+            ArrayNode matchingCardsArray = mapper.createArrayNode();
+
+            if (responder != null) {
+                responsePayload.put("responderID", responder.getPlayerId());
+
+                for (Card card : suggestion.getMatchingCards()) {
+                    ObjectNode cardNode = mapper.createObjectNode();
+                    cardNode.put("cardId", card.getCardId());
+                    cardNode.put("name", card.getName());
+                    cardNode.put("type", card.getClass().getSimpleName());
+                    cardNode.put("seen", true);
+
+                    matchingCardsArray.add(cardNode);
+                }
+
+                dbService.saveSeenCards(suggesterID, suggestion.getMatchingCards());
+            } else {
+                responsePayload.put("responderID", "");
+            }
+
+            responsePayload.set("matchingCards", matchingCardsArray);
+
+        } catch (IllegalArgumentException e) {
+            response.put("type", GameMessageType.SUGGESTION_ERROR.toString());
+            responsePayload.put("reason", "Invalid suspect, room or weapon");
+        } catch (NullPointerException e) {
+            response.put("type", GameMessageType.SUGGESTION_ERROR.toString());
+            responsePayload.put("reason", "Missing suggestion payload field");
+        }
+
         response.set("payload", responsePayload);
         return response;
     }
