@@ -124,7 +124,9 @@ public class GameServer {
 
             response.put("type", LobbyMessageType.GAME_STARTED.toString());
             responsePayload.put("gameId", game.getGameId());
-            responsePayload.put("status", "RUNNING");
+            responsePayload.put("status", game.getStatus().toString());
+            responsePayload.put("currentPhase", game.getCurrentPhase().toString());
+            responsePayload.put("currentPlayerIndex", game.getTurnManager().getCurrentPlayerId());
             response.set("payload", responsePayload);
         } else {
             response.put("type", LobbyMessageType.START_GAME_ERROR.toString());

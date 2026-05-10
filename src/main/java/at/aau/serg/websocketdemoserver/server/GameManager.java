@@ -7,22 +7,22 @@ public class GameManager {
 
     private Game game;
 
-    public GameManager(){
-
+    public GameManager() {
+        this.game = Game.getINSTANCE();
     }
-    public GameManager(Game game){
+
+    public GameManager(Game game) {
         this.game = game;
     }
-
-    public void handleAction(){
-        //TODO:
+    public void handleAction() {
+        if (game == null || !game.isRunning()) {
+            throw new IllegalStateException("Game is not running");
+        }
     }
-
-    public void broadcastState(){
-        //TODO:
-    }
-
     public Game getGame(){
         return game;
+    }
+    public void broadcastState(){
+        //TODO:
     }
 }

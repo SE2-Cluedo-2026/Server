@@ -16,7 +16,9 @@ public class GameStateMessage {
 
 
     public static GameStateMessage from (Game game){
-        //TODO
-        return null;
+        return new GameStateMessage(game.getGameId(),
+            game.getStatus().toString(),
+            game.getCurrentPhase().toString(),
+            game.getTurnManager().getCurrentPlayerId());
     }
 }
