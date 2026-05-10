@@ -101,6 +101,26 @@ public class GameServer {
                 responsePayload.put("playerId", playerId);
                 responsePayload.put("characterType", characterType.toString());
                 responsePayload.put("ready", true);
+
+                ArrayNode availableCharacters = mapper.createArrayNode();
+                for(CharacterType c : lobbyManager.getAvailableCharacters()) {
+                    availableCharacters.add(c.toString());
+                }
+                responsePayload.set("availableCharacters", availableCharacters);
+
+                ArrayNode existingPlayers = mapper.createArrayNode();
+                for(Player p : lobbyManager.getPlayers()) {
+                    ObjectNode playerNode = mapper.createObjectNode();
+
+                    playerNode.put("playerId", p.getPlayerId());
+                    playerNode.put("ready", p.isReady());
+
+                    if(p.getCharacter() != null) {
+                        playerNode.put("characterType", p.getCharacter().toString());
+                    }
+                    existingPlayers.add(playerNode);
+                }
+                responsePayload.set("existingPlayers", existingPlayers);
             } else {
                 response.put("type", "SET_READY_ERROR");
                 responsePayload.put("reason", "Player not found");
