@@ -100,7 +100,11 @@ public class Game {
     }
 
     public void endTurn() {
-        // TODO
+        if(!isRunning()) {
+            throw new IllegalStateException("Game must be running to end turn");
+        }
+        turnManager.nextTurn(players.size());
+        this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
     }
     public List<CharacterType> getAvailableCharacters() {
         Set<CharacterType> takenCharacters = players.stream()
