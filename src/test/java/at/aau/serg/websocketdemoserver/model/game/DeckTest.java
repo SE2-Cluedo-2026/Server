@@ -65,4 +65,77 @@ public class DeckTest {
         assertEquals(weaponCards, deck.getWeaponCards());
     }
 
+    @Test
+    public void TestDefaultDeckConstructorCreatesAllCards() {
+        Deck deck = new Deck();
+
+        assertEquals(CharacterType.values().length, deck.getSuspectCards().size());
+        assertEquals(RoomType.values().length, deck.getRoomCards().size());
+        assertEquals(WeaponType.values().length, deck.getWeaponCards().size());
+    }
+
+    @Test
+    public void testCreateCaseFileRemovesOneCardFromEachList() {
+        Deck deck = new Deck();
+
+        int suspectCount = deck.getSuspectCards().size();
+        int roomCount = deck.getRoomCards().size();
+        int weaponCount = deck.getWeaponCards().size();
+
+        CaseFile caseFile = deck.createCaseFile();
+
+        assertNotNull(caseFile);
+        assertTrue(caseFile.isComplete());
+
+        assertEquals(suspectCount - 1, deck.getSuspectCards().size());
+        assertEquals(roomCount - 1, deck.getRoomCards().size());
+        assertEquals(weaponCount - 1, deck.getWeaponCards().size());
+    }
+
+    @Test
+    public void testCreateCaseFileReturnsNullWhenSuspectCardsAreEmpty() {
+        Deck deck = new Deck(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+
+        assertNull(deck.createCaseFile());
+    }
+
+    @Test
+    public void TestDealCardsDistributesAllRemainingCardsToPlayers() {
+        Deck deck = new Deck();
+
+        deck.createCaseFile();
+
+        Player playerOne = new Player("1");
+        Player playerTwo = new Player("2");
+
+        List<Player> players = new ArrayList<>();
+        players.add(playerOne);
+        players.add(playerTwo);
+
+        deck.dealCards(players);
+
+        int playerOneCards = playerOne.getCards().size();
+        int playerTwoCards = playerTwo.getCards().size();
+
+        assertEquals(12, playerOneCards + playerTwoCards);
+
+        assertTrue(playerOneCards == 6 || playerOneCards == 7);
+        assertTrue(playerTwoCards == 6 || playerTwoCards == 7);
+
+        assertTrue(deck.getSuspectCards().isEmpty());
+        assertTrue(deck.getRoomCards().isEmpty());
+        assertTrue(deck.getWeaponCards().isEmpty());
+    }
+
+    @Test
+    public void TestDealCardsDoesNothingWhenPlayersAreEmpty() {
+        Deck deck = new Deck();
+
+        deck.createCaseFile();
+
+        List<Player> players = new ArrayList<>();
+
+        assertDoesNotThrow(() -> deck.dealCards(players));
+    }
+
 }
