@@ -1,14 +1,18 @@
 package at.aau.serg.websocketdemoserver.model.game;
 
+import at.aau.serg.websocketdemoserver.model.cards.Card;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.enums.RoomType;
 import at.aau.serg.websocketdemoserver.model.enums.WeaponType;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Suggestion {
     private Player suggester;
     private CharacterType suspect;
     private RoomType room;
     private WeaponType weapon;
+    private List<Card> matchingCards = new ArrayList<>();
 
     public Suggestion(Player suggester, CharacterType suspect, RoomType room, WeaponType weapon) {
         this.suggester = suggester;
@@ -31,5 +35,13 @@ public class Suggestion {
 
     public WeaponType getWeapon() {
         return weapon;
+    }
+
+    public List<Card> getMatchingCards() {
+        return matchingCards;
+    }
+
+    public void setMatchingCards(List<Card> matchingCards) {
+        this.matchingCards = matchingCards;
     }
 }
