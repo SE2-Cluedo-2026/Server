@@ -3,6 +3,7 @@ package at.aau.serg.websocketdemoserver.server;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
+import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,9 @@ public class LobbyManager {
     }
 
     public boolean addPlayer(String playerKey) {
+      if(game.getStatus() != GameStatus.LOBBY){
+          return false;
+      }
         if(!game.playerAlreadyJoined(playerKey)) {
             Player player = new Player(playerKey);
             game.addPlayer(player);
@@ -53,7 +57,8 @@ public class LobbyManager {
         return false;
     }
     public boolean canStartGame() {
-        return !game.getPlayers().isEmpty() &&
-                game.getPlayers().stream().allMatch(Player::isReady);
+      return game.getStatus() == GameStatus.LOBBY
+              && game.getPlayers().size() == 4
+              && game.getPlayers().stream().allMatch(Player::isReady);
     }
 }

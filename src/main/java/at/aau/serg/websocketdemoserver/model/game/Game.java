@@ -60,11 +60,16 @@ public class Game {
     }
 
     public void start() {
+        if(this.status != GameStatus.LOBBY){
+            throw new IllegalStateException("Game can only be started from lobby");
+        }
+        if(players.size() != 4){
+            throw new IllegalStateException("Game needs exactly 4 players");
+        }
         this.status = GameStatus.RUNNING;
         this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
         this.turnManager = TurnManager.getINSTANCE();
     }
-
     public void makeSuggestion() {
         // TODO
     }
