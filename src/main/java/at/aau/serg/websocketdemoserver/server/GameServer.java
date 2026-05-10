@@ -156,4 +156,27 @@ public class GameServer {
 
         return response;
     }
+    public ObjectNode endTurn(JsonNode payload) {
+        ObjectNode response = mapper.createObjectNode();
+        ObjectNode responsePayload = mapper.createObjectNode();
+
+        Game game = lobbyManager.getGame();
+
+        try {
+            game.endTurn();
+            dbService.saveGame(game);
+
+            response.put("type", "END_TURN");
+            responsePayload.put("gameId", game.getGameId());
+            responsePayload.put("currentPhase", game.getCurrentPhase().toString());
+            responsePayload.put("currentPlayerIndex", game.getTurnManager().getCurrentPlayerId());
+
+        } catch (IllegalStateException e) {
+            response.put("type", "END_TURN_ERROR");
+            responsePayload.put("reason", e.getMessage());
+        }
+
+        response.set("payload", responsePayload);
+        return response;
+    }
 }

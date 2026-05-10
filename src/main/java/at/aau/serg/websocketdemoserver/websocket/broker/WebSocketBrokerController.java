@@ -54,6 +54,9 @@ public class WebSocketBrokerController {
             case MOVE -> {
                 // TODO
             }
+            case END_TURN -> {
+                return gameServer.endTurn(payload);
+            }
         }
 
         return null;
