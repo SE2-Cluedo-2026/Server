@@ -54,6 +54,27 @@ public class Game {
         }
         return removed;
     }
+    public boolean isLobby() {
+        return status == GameStatus.LOBBY;
+    }
+    public boolean isRunning() {
+        return status == GameStatus.RUNNING;
+    }
+    public void finish(){
+        this.status = GameStatus.FINISHED;
+    }
+    public void abort(){
+        this.status = GameStatus.ABORTED;
+    }
+    public void resetToLobby(){
+        this.status = GameStatus.LOBBY;
+        this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
+        this.players.clear();
+        this.caseFile = null;
+    }
+    public boolean allPlayersEliminated(){
+        return !players.isEmpty() && players.stream().allMatch(Player::isEliminated);
+    }
 
     public boolean isGameFull() {
         return players.size() >= 4;
