@@ -10,12 +10,21 @@ import java.util.List;
 public class SuggestionResolver {
 
     public Player resolveSuggestion(Suggestion suggestion, List<Player> players) {
-        if (suggestion == null || players == null || suggestion.getSuggester() == null) {
+        if (suggestion == null || players == null || players.isEmpty() || suggestion.getSuggester() == null) {
             return null;
         }
 
-        for (Player player : players) {
-            if (player.getPlayerId().equals(suggestion.getSuggester().getPlayerId())) {
+        int suggesterIndex = findPlayerIndex(players, suggestion.getSuggester().getPlayerId());
+
+        if (suggesterIndex == -1) {
+            suggestion.setMatchingCards(new ArrayList<>());
+            return null;
+        }
+
+        for (int i = 1; i < players.size(); i++) {
+            Player player = players.get((suggesterIndex + i) % players.size());
+
+            if (player.isEliminated()) {
                 continue;
             }
 
@@ -31,6 +40,15 @@ public class SuggestionResolver {
         return null;
     }
 
+    private int findPlayerIndex(List<Player> players, String playerId) {
+        for (int i = 0; i < players.size(); i++) {
+            if (players.get(i).getPlayerId().equals(playerId)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     public List<Card> getMatchingCards(Player player, Suggestion suggestion) {
         List<Card> matchingCards = new ArrayList<>();
 
@@ -40,17 +58,17 @@ public class SuggestionResolver {
 
         for (Card card : player.getCards()) {
             if (card instanceof SuspectCard suspectCard
-                    && suspectCard.getSuspect().equals(suggestion.getSuspect())) {
+                    && suspectCard.getSuspect() == suggestion.getSuspect()) {
                 matchingCards.add(card);
             }
 
             if (card instanceof RoomCard roomCard
-                    && roomCard.getRoom().equals(suggestion.getRoom())) {
+                    && roomCard.getRoom() == suggestion.getRoom()) {
                 matchingCards.add(card);
             }
 
             if (card instanceof WeaponCard weaponCard
-                    && weaponCard.getWeapon().equals(suggestion.getWeapon())) {
+                    && weaponCard.getWeapon() == suggestion.getWeapon()) {
                 matchingCards.add(card);
             }
         }
