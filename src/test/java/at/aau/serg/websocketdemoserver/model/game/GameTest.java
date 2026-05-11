@@ -108,6 +108,7 @@ public class GameTest {
 
     @Test
     public void TestStartCreatesCompleteCaseFile() {
+        addFourPlayers();
         game.start();
 
         assertEquals(GameStatus.RUNNING, game.getStatus());
@@ -128,9 +129,11 @@ public class GameTest {
 
     @Test
     public void TestEndTurn() {
+        addFourPlayers();
+        game.start();
+
         assertDoesNotThrow(() -> game.endTurn());
     }
-
     @Test
     public void TestGetAvailableCharacters() {
         game.addPlayer(createPlayer("1", CharacterType.MRS_PINK));
@@ -162,9 +165,16 @@ public class GameTest {
         player.setCharacter(characterType);
         return player;
     }
+    private void addFourPlayers() {
+        game.addPlayer(createPlayer("1", CharacterType.MRS_PINK));
+        game.addPlayer(createPlayer("2", CharacterType.DR_BLUE));
+        game.addPlayer(createPlayer("3", CharacterType.MRS_LAVENDER));
+        game.addPlayer(createPlayer("4", CharacterType.DR_RED));
+    }
 
     @Test
     public void TestStartCreatesCaseFile() {
+        addFourPlayers();
         game.start();
 
         assertNotNull(game.getCaseFile());
@@ -172,6 +182,7 @@ public class GameTest {
 
     @Test
     public void testStartCreatesCompleteCaseFile() {
+        addFourPlayers();
         game.start();
 
         assertEquals(GameStatus.RUNNING, game.getStatus());
@@ -182,6 +193,7 @@ public class GameTest {
 
     @Test
     public void testFinishClearsCaseFile() {
+        addFourPlayers();
         game.start();
 
         assertNotNull(game.getCaseFile());
@@ -194,6 +206,7 @@ public class GameTest {
 
     @Test
     public void testAbortClearsCaseFile() {
+        addFourPlayers();
         game.start();
 
         assertNotNull(game.getCaseFile());
@@ -208,16 +221,25 @@ public class GameTest {
     public void TestStartDealsCardsToPlayers() {
         Player playerOne = createPlayer("1", CharacterType.MRS_PINK);
         Player playerTwo = createPlayer("2", CharacterType.DR_BLUE);
+        Player playerThree = createPlayer("3", CharacterType.MRS_LAVENDER);
+        Player playerFour = createPlayer("4", CharacterType.DR_RED);
 
         game.addPlayer(playerOne);
         game.addPlayer(playerTwo);
+        game.addPlayer(playerThree);
+        game.addPlayer(playerFour);
 
         game.start();
 
         assertNotNull(playerOne.getCards());
         assertNotNull(playerTwo.getCards());
+        assertNotNull(playerThree.getCards());
+        assertNotNull(playerFour.getCards());
 
-        int totalCards = playerOne.getCards().size() + playerTwo.getCards().size();
+        int totalCards = playerOne.getCards().size()
+        + playerTwo.getCards().size()
+                + playerThree.getCards().size()
+                + playerFour.getCards().size();
 
         assertEquals(12, totalCards);
     }

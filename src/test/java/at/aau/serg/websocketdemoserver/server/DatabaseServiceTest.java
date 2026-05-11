@@ -44,7 +44,7 @@ public class DatabaseServiceTest {
 
         databaseService.saveGame(game);
 
-        verify(jdbc, times(3)).update(anyString(), any(Object[].class));
+        verify(jdbc, times(4)).update(anyString(), any(Object[].class));
     }
 
     @Test
@@ -54,7 +54,7 @@ public class DatabaseServiceTest {
 
         databaseService.saveGame(game);
 
-        verify(jdbc, times(3)).update(anyString(), any(Object[].class));
+        verify(jdbc, times(4)).update(anyString(), any(Object[].class));
     }
 
     @Test
@@ -64,7 +64,7 @@ public class DatabaseServiceTest {
 
         databaseService.saveGame(game);
 
-        verify(jdbc, times(4)).update(anyString(), any(Object[].class));
+        verify(jdbc, times(5)).update(anyString(), any(Object[].class));
     }
 
     @Test
