@@ -5,8 +5,18 @@ import at.aau.serg.websocketdemoserver.messaging.dtos.GameMessageType;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
+import at.aau.serg.websocketdemoserver.model.game.Accusation;
+import at.aau.serg.websocketdemoserver.model.board.Position;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import at.aau.serg.websocketdemoserver.model.board.Field;
+import at.aau.serg.websocketdemoserver.model.enums.FieldType;
+import at.aau.serg.websocketdemoserver.model.enums.PositionType;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -18,11 +28,7 @@ import at.aau.serg.websocketdemoserver.model.enums.RoomType;
 import at.aau.serg.websocketdemoserver.model.enums.WeaponType;
 import at.aau.serg.websocketdemoserver.model.game.Suggestion;
 import at.aau.serg.websocketdemoserver.model.game.SuggestionResolver;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
 
 @Service
 public class GameServer {
@@ -532,21 +538,78 @@ public class GameServer {
     }
 
     public ObjectNode handleAccusation(JsonNode payload) {
-        String accuserID = payload.get("accuserID").asText();
-        String suspect = payload.get("suspect").asText();
-        String room = payload.get("room").asText();
-        String weapon = payload.get("weapon").asText();
-
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
-        responsePayload.put("gameID", lobbyManager.getGame().getGameId());
-        responsePayload.put("accuserID", accuserID);
-        responsePayload.put("suspect", suspect);
-        responsePayload.put("room", room);
-        responsePayload.put("weapon", weapon);
 
-        response.put("type", GameMessageType.MAKE_ACCUSATION.toString());
-        response.set("payload", responsePayload);
+        try {
+            String accuserID = payload.get("accuserID").asText();
+            CharacterType suspect = CharacterType.valueOf(payload.get("suspect").asText());
+            RoomType room = RoomType.valueOf(payload.get("room").asText());
+            WeaponType weapon = WeaponType.valueOf(payload.get("weapon").asText());
+
+            Game game = lobbyManager.getGame();
+
+            if (!game.isRunning()) {
+                response.put("type", "ACCUSATION_ERROR");
+                responsePayload.put("reason", "Game is not running");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            Player accuser = findPlayer(game, accuserID);
+            if (accuser == null) {
+                response.put("type", "ACCUSATION_ERROR");
+                responsePayload.put("reason", "Accuser not found");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            if (accuser.isEliminated()) {
+                response.put("type", "ACCUSATION_ERROR");
+                responsePayload.put("reason", "Eliminated players cannot make accusations");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            Accusation accusation = new Accusation(accuser, suspect, room, weapon);
+            boolean correct = game.getCaseFile().matches(accusation);
+
+            responsePayload.put("gameID", game.getGameId());
+            responsePayload.put("accuserID", accuserID);
+            responsePayload.put("suspect", suspect.toString());
+            responsePayload.put("room", room.toString());
+            responsePayload.put("weapon", weapon.toString());
+            responsePayload.put("correct", correct);
+
+            if (correct) {
+                game.finish();
+                response.put("type", GameMessageType.GAME_FINISHED.toString());
+                responsePayload.put("winner", accuserID);
+            } else {
+                accuser.eliminate();
+
+                if (game.allPlayersEliminated()) {
+                    game.abort();
+                    response.put("type", GameMessageType.GAME_ABORTED.toString());
+                    responsePayload.put("reason", "All players eliminated");
+                } else {
+                    response.put("type", GameMessageType.MAKE_ACCUSATION.toString());
+                    responsePayload.put("eliminated", true);
+                    scheduleAutoEndTurn(5);
+                }
+            }
+
+            response.set("payload", responsePayload);
+        } catch (IllegalArgumentException e) {
+            response.put("type", "ACCUSATION_ERROR");
+            responsePayload.put("reason", "Invalid suspect, room or weapon");
+            response.set("payload", responsePayload);
+        } catch (Exception e) {
+            response.put("type", "ACCUSATION_ERROR");
+            responsePayload.put("reason", "Error processing accusation: " + e.getMessage());
+            response.set("payload", responsePayload);
+        }
+
         return response;
     }
 
@@ -627,6 +690,7 @@ public class GameServer {
             }
 
             responsePayload.set("matchingCards", matchingCardsArray);
+            scheduleAutoEndTurn(5);
 
         } catch (IllegalArgumentException e) {
             response.put("type", GameMessageType.SUGGESTION_ERROR.toString());
