@@ -132,6 +132,9 @@ public class Game {
         return turnManager.getCurrentPlayer(players);
     }
     public void endTurn() {
+        if(!isRunning()) {
+            throw new IllegalStateException("Game must be running to end turn");
+        }
         turnManager.nextTurn(players);
         this.currentPhase = turnManager.getPhase();
     }
