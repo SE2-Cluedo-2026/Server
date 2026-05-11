@@ -429,30 +429,108 @@ public class GameServer {
      */
 
     public ObjectNode enterRoom(JsonNode payload) {
-        String playerId = payload.get("playerId").asText();
-        String roomId = payload.get("roomId").asText();
-
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
-        responsePayload.put("playerId", playerId);
-        responsePayload.put("roomId", roomId);
 
-        response.put("type", GameMessageType.ENTER_ROOM.toString());
-        response.set("payload", responsePayload);
+        try {
+            String playerId = payload.get("playerId").asText();
+            String roomId = payload.get("roomId").asText();
+            Game game = lobbyManager.getGame();
+
+            Player player = findPlayer(game, playerId);
+            if (player == null) {
+                response.put("type", "ENTER_ROOM_ERROR");
+                responsePayload.put("reason", "Player not found");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            RoomType roomType = RoomType.valueOf(roomId);
+            Position pos = new Position();
+            pos.setRoomType(roomType);
+            player.setCurrentPosition(pos);
+
+            game.getTurnManager().enterRoom();
+
+            responsePayload.put("playerId", playerId);
+            responsePayload.put("roomId", roomId);
+            responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
+
+            response.put("type", GameMessageType.ENTER_ROOM.toString());
+            response.set("payload", responsePayload);
+        } catch (IllegalArgumentException e) {
+            response.put("type", "ENTER_ROOM_ERROR");
+            responsePayload.put("reason", "Invalid room: " + e.getMessage());
+            response.set("payload", responsePayload);
+        } catch (Exception e) {
+            response.put("type", "ENTER_ROOM_ERROR");
+            responsePayload.put("reason", "Error entering room: " + e.getMessage());
+            response.set("payload", responsePayload);
+        }
+
         return response;
     }
+
+    private static final Map<RoomType, RoomType> HIDDEN_PASSAGES = Map.of(
+            RoomType.BALLROOM, RoomType.STUDY,
+            RoomType.STUDY, RoomType.BALLROOM,
+            RoomType.BILLIARDROOM, RoomType.KITCHEN,
+            RoomType.KITCHEN, RoomType.BILLIARDROOM);
 
     public ObjectNode takeHiddenWay(JsonNode payload) {
-        String playerId = payload.get("playerId").asText();
-
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
-        responsePayload.put("playerId", playerId);
 
-        response.put("type", GameMessageType.TAKE_HIDDEN_WAY.toString());
-        response.set("payload", responsePayload);
+        try {
+            String playerId = payload.get("playerId").asText();
+            Game game = lobbyManager.getGame();
+
+            Player player = findPlayer(game, playerId);
+            if (player == null) {
+                response.put("type", "HIDDEN_WAY_ERROR");
+                responsePayload.put("reason", "Player not found");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            Position currentPos = player.getCurrentPosition();
+            if (currentPos == null
+                    || currentPos.getPositionType() != at.aau.serg.websocketdemoserver.model.enums.PositionType.ROOM) {
+                response.put("type", "HIDDEN_WAY_ERROR");
+                responsePayload.put("reason", "Player is not in a room");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            RoomType currentRoom = currentPos.getRoom();
+            RoomType targetRoom = HIDDEN_PASSAGES.get(currentRoom);
+
+            if (targetRoom == null) {
+                response.put("type", "HIDDEN_WAY_ERROR");
+                responsePayload.put("reason", "No hidden passage from this room");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            Position newPos = new Position();
+            newPos.setRoomType(targetRoom);
+            player.setCurrentPosition(newPos);
+
+            responsePayload.put("playerId", playerId);
+            responsePayload.put("targetRoom", targetRoom.toString());
+            responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
+
+            response.put("type", GameMessageType.TAKE_HIDDEN_WAY.toString());
+            response.set("payload", responsePayload);
+        } catch (Exception e) {
+            response.put("type", "HIDDEN_WAY_ERROR");
+            responsePayload.put("reason", "Error taking hidden way: " + e.getMessage());
+            response.set("payload", responsePayload);
+        }
+
         return response;
     }
+
     public ObjectNode handleAccusation(JsonNode payload) {
         String accuserID = payload.get("accuserID").asText();
         String suspect = payload.get("suspect").asText();
