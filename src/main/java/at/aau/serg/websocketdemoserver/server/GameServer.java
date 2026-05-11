@@ -88,6 +88,16 @@ public class GameServer {
             dbService.saveGame(lobbyManager.getGame());
         } else {
             response.put("type", LobbyMessageType.PLAYER_REJOINED.toString());
+            Player rejoinedPlayer = null;
+            for (Player p : lobbyManager.getPlayers()) {
+                if (p.getPlayerId().equals(playerKey)) {
+                    rejoinedPlayer = p;
+                    break;
+                }
+            }
+            if (rejoinedPlayer != null && rejoinedPlayer.getCharacter() == null) {
+                responsePayload.set("availableCharacters", availableCharacters);
+            }
         }
 
         response.set("payload", responsePayload);
