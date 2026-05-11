@@ -284,15 +284,66 @@ public class GameServer {
 
     //----------------------------------------------------------Game Teil -------------------------------------------------------------
 
-    public ObjectNode rollDice(JsonNode payload) {
-        int value = (int) (Math.random() * 6) + 1;
-
+    public ObjectNode move(JsonNode payload) {
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
-        responsePayload.put("value", value);
 
-        response.put("type", GameMessageType.ROLL_DICE.toString());
-        response.set("payload", responsePayload);
+        try {
+            String playerId = payload.get("playerId").asText();
+            String position = payload.get("position").asText();
+            Game game = lobbyManager.getGame();
+
+            Player player = findPlayer(game, playerId);
+            if (player == null) {
+                response.put("type", "MOVE_ERROR");
+                responsePayload.put("reason", "Player not found");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            // Parse position — format "x,y" for board or a RoomType name for room
+            Position pos = new Position();
+            boolean isInRoom = false;
+            if (position.contains(",")) {
+                String[] parts = position.split(",");
+                int x = Integer.parseInt(parts[0].trim());
+                int y = Integer.parseInt(parts[1].trim());
+                pos.setBoardPosition(x, y);
+            } else {
+                try {
+                    RoomType roomType = RoomType.valueOf(position);
+                    pos.setRoomType(roomType);
+                    isInRoom = true;
+                } catch (IllegalArgumentException e) {
+                    // Treat as a generic board position string
+                    pos.setBoardPosition(0, 0);
+                }
+            }
+            player.setCurrentPosition(pos);
+            game.getTurnManager().decrementMove(isInRoom);
+
+            if (!isInRoom && game.getTurnManager().getMovesRemaining() == 0) {
+                if (pos.getPositionType() == PositionType.BOARD) {
+                    Field field = game.getBoard().getFields()[pos.getX()][pos.getY()];
+                    if (field.getFieldType() == FieldType.HALLWAY_FIELD) {
+                        scheduleAutoEndTurn(0);
+                    }
+                }
+            }
+
+            responsePayload.put("playerId", playerId);
+            responsePayload.put("position", position);
+            responsePayload.put("movesLeft", game.getTurnManager().getMovesRemaining());
+            responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
+
+            response.put("type", GameMessageType.MOVE.toString());
+            response.set("payload", responsePayload);
+        } catch (Exception e) {
+            response.put("type", "MOVE_ERROR");
+            responsePayload.put("reason", "Error processing move: " + e.getMessage());
+            response.set("payload", responsePayload);
+        }
+
         return response;
     }
 
