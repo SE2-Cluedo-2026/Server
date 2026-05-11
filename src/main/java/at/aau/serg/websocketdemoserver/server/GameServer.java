@@ -13,12 +13,16 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import tools.jackson.databind.*;
 import tools.jackson.databind.node.*;
-import at.aau.serg.websocketdemoserver.messaging.dtos.GameMessageType;
 import at.aau.serg.websocketdemoserver.model.cards.Card;
 import at.aau.serg.websocketdemoserver.model.enums.RoomType;
 import at.aau.serg.websocketdemoserver.model.enums.WeaponType;
 import at.aau.serg.websocketdemoserver.model.game.Suggestion;
 import at.aau.serg.websocketdemoserver.model.game.SuggestionResolver;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class GameServer {
@@ -26,6 +30,12 @@ public class GameServer {
     private DatabaseService dbService;
     private final LobbyManager lobbyManager = new LobbyManager();
     private final ObjectMapper mapper = new ObjectMapper();
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
+
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private ScheduledFuture<?> autoEndTurnTask;
 
     public GameServer() {}
 //-------------------- joinLobby------------------------------------------- --------------------
@@ -194,7 +204,26 @@ public class GameServer {
         response.set("payload", responsePayload);
         return response;
     }
+    private void scheduleAutoEndTurn(int delaySeconds) {
+        cancelScheduledEndTurn();
+        autoEndTurnTask = scheduler.schedule(() -> {
+            try {
+                ObjectNode payload = mapper.createObjectNode();
+                ObjectNode response = endTurn(payload);
+                messagingTemplate.convertAndSend("/topic/game-response", response);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }, delaySeconds, TimeUnit.SECONDS);
+    }
+
+    private void cancelScheduledEndTurn() {
+        if (autoEndTurnTask != null && !autoEndTurnTask.isDone()) {
+            autoEndTurnTask.cancel(false);
+        }
+    }
     public ObjectNode endTurn(JsonNode payload) {
+        cancelScheduledEndTurn();
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
 
