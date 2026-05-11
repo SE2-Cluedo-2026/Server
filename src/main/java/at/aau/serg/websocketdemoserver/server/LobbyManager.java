@@ -3,6 +3,7 @@ package at.aau.serg.websocketdemoserver.server;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
+import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,16 +11,19 @@ public class LobbyManager {
     // uses GameInstance
     private final Game game = Game.getINSTANCE();
 
-  public boolean leaveLobby(String playerId) {
-    return game.leaveLobby(playerId);
-  }
+    public boolean leaveLobby(String playerId) {
+        return game.leaveLobby(playerId);
+    }
 
-  public Game getGame() {
+    public Game getGame() {
         return game;
     }
 
     public boolean addPlayer(String playerKey) {
-        if(!game.playerAlreadyJoined(playerKey)) {
+        if (game.getStatus() != GameStatus.LOBBY) {
+            return false;
+        }
+        if (!game.playerAlreadyJoined(playerKey)) {
             Player player = new Player(playerKey);
             game.addPlayer(player);
             return true;
@@ -42,6 +46,7 @@ public class LobbyManager {
     public void joinLobby() {
         //TODO:
     }
+
     public boolean setCharacterTypeAndStatusReady(String playerId, CharacterType characterType) {
         for (Player player : game.getPlayers()) {
             if (player.getPlayerId().equals(playerId)) {
@@ -52,8 +57,10 @@ public class LobbyManager {
         }
         return false;
     }
+
     public boolean canStartGame() {
-        return !game.getPlayers().isEmpty() &&
-                game.getPlayers().stream().allMatch(Player::isReady);
+        return game.getStatus() == GameStatus.LOBBY
+                && game.getPlayers().size() == 4
+                && game.getPlayers().stream().allMatch(Player::isReady);
     }
 }

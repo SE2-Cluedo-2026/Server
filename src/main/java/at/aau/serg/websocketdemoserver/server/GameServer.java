@@ -129,7 +129,9 @@ public class GameServer {
 
             response.put("type", LobbyMessageType.GAME_STARTED.toString());
             responsePayload.put("gameId", game.getGameId());
-            responsePayload.put("status", "RUNNING");
+            responsePayload.put("status", game.getStatus().toString());
+            responsePayload.put("currentPhase", game.getCurrentPhase().toString());
+            responsePayload.put("currentPlayerIndex", game.getTurnManager().getCurrentPlayerId());
 
             ArrayNode playersArray = mapper.createArrayNode();
 
@@ -165,7 +167,29 @@ public class GameServer {
 
         return response;
     }
+    public ObjectNode endTurn(JsonNode payload) {
+        ObjectNode response = mapper.createObjectNode();
+        ObjectNode responsePayload = mapper.createObjectNode();
 
+        Game game = lobbyManager.getGame();
+
+        try {
+            game.endTurn();
+            dbService.saveGame(game);
+
+            response.put("type", GameMessageType.END_TURN.toString());
+            responsePayload.put("gameId", game.getGameId());
+            responsePayload.put("currentPhase", game.getCurrentPhase().toString());
+            responsePayload.put("currentPlayerIndex", game.getTurnManager().getCurrentPlayerId());
+
+        } catch (IllegalStateException e) {
+            response.put("type", "END_TURN_ERROR");
+            responsePayload.put("reason", e.getMessage());
+        }
+
+        response.set("payload", responsePayload);
+        return response;
+    }
     /*
     public ObjectNode setReady(JsonNode payload) {
         String playerId = payload.get("playerId").asText();
