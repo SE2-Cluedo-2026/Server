@@ -53,7 +53,7 @@ public class WebSocketBrokerController {
                 return gameServer.move(payload);
             }
             case END_TURN -> {
-                // return gameServer.endTurn(payload);
+                return gameServer.endTurn(payload);
             }
             case ENTER_ROOM -> {
                 return gameServer.enterRoom(payload);

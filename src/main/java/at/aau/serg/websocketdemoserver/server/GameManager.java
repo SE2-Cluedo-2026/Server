@@ -8,16 +8,16 @@ public class GameManager {
     private Game game;
 
     public GameManager(){
-
+        this.game = Game.getINSTANCE();
     }
-    public GameManager(Game game){
+    public GameManager(Game game) {
         this.game = game;
     }
-
     public void handleAction(){
-        //TODO:
+        if (game == null || !game.isRunning()) {
+            throw new IllegalStateException("Game is not running");
+        }
     }
-
     public void broadcastState(){
         //TODO:
     }

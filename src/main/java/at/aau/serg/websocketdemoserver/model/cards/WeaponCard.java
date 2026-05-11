@@ -13,4 +13,9 @@ public class WeaponCard extends Card {
     public WeaponType getWeapon() {
         return weapon;
     }
+
+    @Override
+    public String toString() {
+        return super.toString() + ", weapon=" + weapon;
+    }
 }

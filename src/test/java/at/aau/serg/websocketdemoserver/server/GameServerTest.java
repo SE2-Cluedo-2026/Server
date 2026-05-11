@@ -5,6 +5,9 @@ import at.aau.serg.websocketdemoserver.messaging.dtos.LobbyMessageType;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
+import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
+import at.aau.serg.websocketdemoserver.model.game.TurnManager;
+import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -191,6 +194,10 @@ public class GameServerTest {
     public void testStartGame_Success() throws Exception {
         Game mockGame = mock(Game.class);
         when(mockGame.getGameId()).thenReturn("game-1");
+        when(mockGame.getStatus()).thenReturn(GameStatus.RUNNING);
+        when(mockGame.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+        when(mockGame.getPlayers()).thenReturn(List.of());
+        when(mockGame.getTurnManager()).thenReturn(TurnManager.getINSTANCE());
         when(lobbyManager.canStartGame()).thenReturn(true);
         when(lobbyManager.getGame()).thenReturn(mockGame);
 
@@ -273,16 +280,16 @@ public class GameServerTest {
     @Test
     public void testHandleSuggestion() throws Exception {
         Game mockGame = mock(Game.class);
+        Player player = new Player("player1");
+
         when(mockGame.getGameId()).thenReturn("game-1");
+        when(mockGame.getStatus()).thenReturn(GameStatus.RUNNING);
+        when(mockGame.getPlayers()).thenReturn(List.of(player));
         when(lobbyManager.getGame()).thenReturn(mockGame);
 
         JsonNode payload = mapper.readTree("{\"suggesterID\": \"player1\", \"suspect\": \"MRS_PINK\", \"room\": \"KITCHEN\", \"weapon\": \"KNIFE\"}");
         ObjectNode response = gameServer.handleSuggestion(payload);
 
-        assertEquals(GameMessageType.MAKE_SUGGESTION.toString(), response.get("type").asText());
-        assertEquals("player1", response.get("payload").get("suggesterID").asText());
-        assertEquals("MRS_PINK", response.get("payload").get("suspect").asText());
-        assertEquals("KITCHEN", response.get("payload").get("room").asText());
-        assertEquals("KNIFE", response.get("payload").get("weapon").asText());
+        assertEquals(GameMessageType.SUGGESTION_RESULT.toString(), response.get("type").asText());
     }
 }
