@@ -3,6 +3,7 @@ package at.aau.serg.websocketdemoserver.server;
 import at.aau.serg.websocketdemoserver.messaging.dtos.LobbyMessageType;
 import at.aau.serg.websocketdemoserver.messaging.dtos.GameMessageType;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
+import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
 import at.aau.serg.websocketdemoserver.model.game.Accusation;
@@ -32,8 +33,8 @@ import java.util.Map;
 
 @Service
 public class GameServer {
-    @Autowired
-    private DatabaseService dbService;
+    //@Autowired
+    //private DatabaseService dbService;
     private final LobbyManager lobbyManager = new LobbyManager();
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -44,7 +45,6 @@ public class GameServer {
     private ScheduledFuture<?> autoEndTurnTask;
 
     public GameServer() {}
-//-------------------- joinLobby------------------------------------------- --------------------
     public ObjectNode joinLobby(JsonNode payload) {
         String playerKey = payload.get("playerKey").asText();
         ObjectNode response = mapper.createObjectNode();
@@ -85,7 +85,7 @@ public class GameServer {
 
         if (playerIsNew) {
             response.put("type", LobbyMessageType.NEW_PLAYER_JOINED.toString());
-            dbService.saveGame(lobbyManager.getGame());
+            //dbService.saveGame(lobbyManager.getGame());
         } else {
             response.put("type", LobbyMessageType.PLAYER_REJOINED.toString());
             Player rejoinedPlayer = null;
@@ -113,7 +113,7 @@ public class GameServer {
         responsePayload.put("playerId",playerId);
 
         if(removed) {
-            dbService.removePlayer(playerId);
+            //dbService.removePlayer(playerId);
             response.put("type", LobbyMessageType.PLAYER_REMOVED.toString());
         } else {
             response.put("type", "LEAVE_ERROR");
@@ -133,7 +133,7 @@ public class GameServer {
             boolean success = lobbyManager.setCharacterTypeAndStatusReady(playerId, characterType);
 
             if (success) {
-                dbService.saveGame(lobbyManager.getGame());
+                //dbService.saveGame(lobbyManager.getGame());
 
                 response.put("type",
                         LobbyMessageType.SET_CHARACTER_TYPE_AND_STATUS_READY.toString());
@@ -247,7 +247,7 @@ public class GameServer {
 
         try {
             game.endTurn();
-            dbService.saveGame(game);
+            //dbService.saveGame(game);
 
             response.put("type", GameMessageType.END_TURN.toString());
             responsePayload.put("gameId", game.getGameId());
@@ -262,43 +262,54 @@ public class GameServer {
         response.set("payload", responsePayload);
         return response;
     }
-    /*
-    public ObjectNode setReady(JsonNode payload) {
-        String playerId = payload.get("playerId").asText();
-        String characterType = payload.get("characterType").asText();
-        boolean ready = payload.get("ready").asBoolean();
 
-        lobbyManager.setReady(playerId, characterType, ready);
-
+    public ObjectNode rollDice(JsonNode payload) {
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
-        responsePayload.put("playerId", playerId);
-        responsePayload.put("characterType", characterType);
-        responsePayload.put("ready", ready);
 
-        response.put("type", LobbyMessageType.SET_CHARACTER_TYPE_AND_STATUS_READY.toString());
-        response.set("payload", responsePayload);
+        try {
+            String playerId = payload.get("playerId").asText();
+            Game game = lobbyManager.getGame();
+
+            if (!game.isRunning()) {
+                response.put("type", "ROLL_DICE_ERROR");
+                responsePayload.put("reason", "Game is not running");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            Player currentPlayer = game.getCurrentPlayer();
+            if (currentPlayer == null || !currentPlayer.getPlayerId().equals(playerId)) {
+                response.put("type", "ROLL_DICE_ERROR");
+                responsePayload.put("reason", "It is not your turn");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            if (game.getTurnManager().getPhase() != TurnPhase.WAITING_FOR_ROLL) {
+                response.put("type", "ROLL_DICE_ERROR");
+                responsePayload.put("reason", "Not in roll phase");
+                response.set("payload", responsePayload);
+                return response;
+            }
+
+            int value = game.getTurnManager().rollDice();
+            //dbService.saveGame(game);
+
+            responsePayload.put("playerId", playerId);
+            responsePayload.put("value", value);
+            responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
+
+            response.put("type", GameMessageType.ROLL_DICE.toString());
+            response.set("payload", responsePayload);
+        } catch (Exception e) {
+            response.put("type", "ROLL_DICE_ERROR");
+            responsePayload.put("reason", "Error processing roll dice: " + e.getMessage());
+            response.set("payload", responsePayload);
+        }
+
         return response;
     }
-
-
-
-    public ObjectNode startGame(JsonNode payload) {
-        lobbyManager.startGame();
-
-        ObjectNode response = mapper.createObjectNode();
-        ObjectNode responsePayload = mapper.createObjectNode();
-        responsePayload.put("gameID", lobbyManager.getGame().getGameId());
-
-        response.put("type", "GAME_STARTED");
-        response.set("payload", responsePayload);
-        return response;
-    }
-    */
-
-
-
-    //----------------------------------------------------------Game Teil -------------------------------------------------------------
 
     public ObjectNode move(JsonNode payload) {
         ObjectNode response = mapper.createObjectNode();
@@ -317,7 +328,6 @@ public class GameServer {
                 return response;
             }
 
-            // Parse position — format "x,y" for board or a RoomType name for room
             Position pos = new Position();
             boolean isInRoom = false;
             if (position.contains(",")) {
@@ -362,87 +372,6 @@ public class GameServer {
 
         return response;
     }
-
-    public ObjectNode move(JsonNode payload) {
-        ObjectNode response = mapper.createObjectNode();
-        ObjectNode responsePayload = mapper.createObjectNode();
-
-        try {
-            String playerId = payload.get("playerId").asText();
-            String position = payload.get("position").asText();
-            Game game = lobbyManager.getGame();
-
-            Player player = findPlayer(game, playerId);
-            if (player == null) {
-                response.put("type", "MOVE_ERROR");
-                responsePayload.put("reason", "Player not found");
-                response.set("payload", responsePayload);
-                return response;
-            }
-
-            // Parse position — format "x,y" for board or a RoomType name for room
-            Position pos = new Position();
-            boolean isInRoom = false;
-            if (position.contains(",")) {
-                String[] parts = position.split(",");
-                int x = Integer.parseInt(parts[0].trim());
-                int y = Integer.parseInt(parts[1].trim());
-                pos.setBoardPosition(x, y);
-            } else {
-                try {
-                    RoomType roomType = RoomType.valueOf(position);
-                    pos.setRoomType(roomType);
-                    isInRoom = true;
-                } catch (IllegalArgumentException e) {
-                    // Treat as a generic board position string
-                    pos.setBoardPosition(0, 0);
-                }
-            }
-            player.setCurrentPosition(pos);
-            game.getTurnManager().decrementMove(isInRoom);
-
-            if (!isInRoom && game.getTurnManager().getMovesRemaining() == 0) {
-                if (pos.getPositionType() == PositionType.BOARD) {
-                    Field field = game.getBoard().getFields()[pos.getX()][pos.getY()];
-                    if (field.getFieldType() == FieldType.HALLWAY_FIELD) {
-                        scheduleAutoEndTurn(0);
-                    }
-                }
-            }
-
-            responsePayload.put("playerId", playerId);
-            responsePayload.put("position", position);
-            responsePayload.put("movesLeft", game.getTurnManager().getMovesRemaining());
-            responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
-
-            response.put("type", GameMessageType.MOVE.toString());
-            response.set("payload", responsePayload);
-        } catch (Exception e) {
-            response.put("type", "MOVE_ERROR");
-            responsePayload.put("reason", "Error processing move: " + e.getMessage());
-            response.set("payload", responsePayload);
-        }
-
-        return response;
-    }
-
-    /*
-    public ObjectNode endTurn(JsonNode payload) {
-        int previousPlayerIndex = lobbyManager.getCurrentPlayerIndex();
-        lobbyManager.nextTurn();
-        int nextPlayerIndex = lobbyManager.getCurrentPlayerIndex();
-
-        ObjectNode response = mapper.createObjectNode();
-        ObjectNode responsePayload = mapper.createObjectNode();
-        responsePayload.put("gameID", lobbyManager.getGame().getGameId());
-        responsePayload.put("previousPlayerIndex", previousPlayerIndex);
-        responsePayload.put("nextPlayerIndex", nextPlayerIndex);
-
-        response.put("type", GameMessageType.END_TURN.toString());
-        response.set("payload", responsePayload);
-        return response;
-    }
-     */
 
     public ObjectNode enterRoom(JsonNode payload) {
         ObjectNode response = mapper.createObjectNode();
@@ -694,7 +623,7 @@ public class GameServer {
                     matchingCardsArray.add(cardNode);
                 }
 
-                dbService.saveSeenCards(suggesterID, suggestion.getMatchingCards());
+                //dbService.saveSeenCards(suggesterID, suggestion.getMatchingCards());
             } else {
                 responsePayload.put("responderID", "");
             }
@@ -712,5 +641,14 @@ public class GameServer {
 
         response.set("payload", responsePayload);
         return response;
+    }
+
+    private Player findPlayer(Game game, String playerId) {
+        for (Player p : game.getPlayers()) {
+            if (p.getPlayerId().equals(playerId)) {
+                return p;
+            }
+        }
+        return null;
     }
 }
