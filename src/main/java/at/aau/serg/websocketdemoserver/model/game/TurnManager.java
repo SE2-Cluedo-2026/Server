@@ -40,6 +40,7 @@ public class TurnManager {
         int die2 = random.nextInt(6) + 1;
         diceValue = die1 + die2;
         phase = TurnPhase.WAITING_FOR_MOVE;
+        movesRemaining = diceValue;
         return diceValue;
     }
     public void startTurnOrder() {
