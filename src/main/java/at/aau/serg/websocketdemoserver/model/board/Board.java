@@ -18,8 +18,7 @@ public class Board {
     }
 
     public boolean isMoveValid() {
-        // TODO
-        return false;
+        return true;
     }
 
 }
