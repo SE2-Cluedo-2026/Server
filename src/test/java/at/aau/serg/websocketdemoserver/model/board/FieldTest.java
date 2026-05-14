@@ -11,21 +11,21 @@ public class FieldTest {
 
     @Test
     public void TestFieldConstructor(){
-        Field field = new Field(FieldType.HALLWAY_FIELD);
+        Field field = new Field(FieldType.HALLWAY_FIELD, 0, 0);
         assertFalse(field.hasPlayer());
         assertEquals(FieldType.HALLWAY_FIELD, field.getFieldType());
     }
 
     @Test
     public void TestFieldConstructorWithNull(){
-        assertThrows(IllegalArgumentException.class, () -> new Field(null));
+        assertThrows(IllegalArgumentException.class, () -> new Field(null, 0, 0));
     }
 
     @Test
     public void TestSetPlayer() {
         Player player = mock(Player.class);
 
-        Field field = new Field(FieldType.HALLWAY_FIELD);
+        Field field = new Field(FieldType.HALLWAY_FIELD, 0, 0);
         field.setPlayer(player);
         assertTrue(field.hasPlayer());
     }
@@ -34,7 +34,7 @@ public class FieldTest {
     public void TestRemovePlayer(){
         Player player = mock(Player.class);
 
-        Field field = new Field(FieldType.HALLWAY_FIELD);
+        Field field = new Field(FieldType.HALLWAY_FIELD, 0, 0);
         field.setPlayer(player);
         assertTrue(field.hasPlayer());
         field.removePlayer();
@@ -43,8 +43,8 @@ public class FieldTest {
 
     @Test
     public void TestGetFieldType(){
-        Field field1 = new Field(FieldType.HALLWAY_FIELD);
-        Field field2 = new Field(FieldType.DOOR_FIELD);
+        Field field1 = new Field(FieldType.HALLWAY_FIELD, 0, 0);
+        Field field2 = new Field(FieldType.DOOR_FIELD, 0, 0);
 
         assertEquals(FieldType.HALLWAY_FIELD, field1.getFieldType());
         assertEquals(FieldType.DOOR_FIELD, field2.getFieldType());
