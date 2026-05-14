@@ -15,6 +15,7 @@ public class TurnManager {
     private int currentPlayerIndex = 0;
 
     private int diceValue;
+    private int movesRemaining;
     private TurnPhase phase;
 
     private TurnManager() {
@@ -30,6 +31,7 @@ public class TurnManager {
             }
         }
         diceValue = 0;
+        movesRemaining = diceValue;
         phase = TurnPhase.WAITING_FOR_ROLL;
     }
 
@@ -38,6 +40,7 @@ public class TurnManager {
         int die2 = random.nextInt(6) + 1;
         diceValue = die1 + die2;
         phase = TurnPhase.WAITING_FOR_MOVE;
+        movesRemaining = diceValue;
         return diceValue;
     }
     public void startTurnOrder() {
@@ -61,6 +64,26 @@ public class TurnManager {
 
     public int getDiceValue() {
         return diceValue;
+    }
+    public int getMovesRemaining() {
+        return movesRemaining;
+    }
+
+    public void decrementMove(boolean isInRoom) {
+        if (movesRemaining > 0) {
+            movesRemaining--;
+        }
+        if (isInRoom) {
+            phase = TurnPhase.IN_ROOM;
+            movesRemaining = 0;
+        } else if (movesRemaining == 0) {
+            phase = TurnPhase.TURN_ENDED;
+        }
+    }
+
+    public void enterRoom() {
+        this.movesRemaining = 0;
+        this.phase = TurnPhase.IN_ROOM;
     }
 
     public TurnPhase getPhase() {
