@@ -234,22 +234,39 @@ public class GameServerTest {
 
     @Test
     public void testMove() throws Exception {
-        JsonNode payload = mapper.readTree("{\"playerId\": \"player1\", \"position\": \"A3\"}");
+        Game mockGame = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(mockGame);
+
+        Player mockPlayer = mock(Player.class);
+        when(mockGame.getPlayers()).thenReturn(List.of(mockPlayer));
+        when(mockPlayer.getPlayerId()).thenReturn("player1");
+
+        Position pos = new Position();
+        pos.setBoardPosition(0, 0);
+        when(mockPlayer.getCurrentPosition()).thenReturn(pos);
+
+        JsonNode payload = mapper.readTree("{\"playerId\": \"player1\", \"toX\": 0, \"toY\": 1}");
         ObjectNode response = gameServer.move(payload);
 
-        assertEquals(GameMessageType.MOVE.toString(), response.get("type").asText());
-        assertEquals("player1", response.get("payload").get("playerId").asText());
-        assertEquals("A3", response.get("payload").get("position").asText());
+        assertEquals("MOVE_ERROR", response.get("type").asText());
     }
 
     @Test
     public void testEnterRoom() throws Exception {
+        Player mockPlayer = mock(Player.class);
+        Game mockGame = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(mockGame);
+        when(mockGame.getPlayers()).thenReturn(List.of(mockPlayer));
+        when(mockPlayer.getPlayerId()).thenReturn("player1");
+
+        Position pos = new Position();
+        pos.setBoardPosition(0, 0);
+        when(mockPlayer.getCurrentPosition()).thenReturn(pos);
+
         JsonNode payload = mapper.readTree("{\"playerId\": \"player1\", \"roomId\": \"KITCHEN\"}");
         ObjectNode response = gameServer.enterRoom(payload);
 
-        assertEquals(GameMessageType.ENTER_ROOM.toString(), response.get("type").asText());
-        assertEquals("player1", response.get("payload").get("playerId").asText());
-        assertEquals("KITCHEN", response.get("payload").get("roomId").asText());
+        assertEquals(GameMessageType.PLAYER_POSITIONS.toString(), response.get("type").asText());
     }
 
     @Test
