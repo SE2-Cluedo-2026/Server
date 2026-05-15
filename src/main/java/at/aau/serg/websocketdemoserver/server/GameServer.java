@@ -528,9 +528,12 @@ public class GameServer {
                 accuser.eliminate();
 
                 if (game.allPlayersEliminated()) {
-                    game.abort();
                     response.put("type", GameMessageType.GAME_ABORTED.toString());
                     responsePayload.put("reason", "All players eliminated");
+
+                    game.abort();
+                    addLobbyResetPayload(responsePayload, game);
+
                 } else {
                     response.put("type", GameMessageType.MAKE_ACCUSATION.toString());
                     responsePayload.put("eliminated", true);
@@ -641,6 +644,31 @@ public class GameServer {
 
         response.set("payload", responsePayload);
         return response;
+    }
+    private void addLobbyResetPayload(ObjectNode responsePayload, Game game) {
+        responsePayload.put("status", game.getStatus().toString());
+        responsePayload.put("currentPhase", game.getCurrentPhase().toString());
+
+        ArrayNode availableCharacters = mapper.createArrayNode();
+        for (CharacterType c : game.getAvailableCharacters()) {
+            availableCharacters.add(c.toString());
+        }
+        responsePayload.set("availableCharacters", availableCharacters);
+
+        ArrayNode existingPlayers = mapper.createArrayNode();
+        for (Player p : game.getPlayers()) {
+            ObjectNode playerNode = mapper.createObjectNode();
+            playerNode.put("playerId", p.getPlayerId());
+            playerNode.put("ready", p.isReady());
+
+            if (p.getCharacter() != null) {
+                playerNode.put("characterType", p.getCharacter().toString());
+            }
+
+            existingPlayers.add(playerNode);
+        }
+
+        responsePayload.set("existingPlayers", existingPlayers);
     }
 
     private Player findPlayer(Game game, String playerId) {

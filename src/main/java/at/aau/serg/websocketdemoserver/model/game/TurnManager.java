@@ -17,6 +17,12 @@ public class TurnManager {
     private int diceValue;
     private int movesRemaining;
     private TurnPhase phase;
+    public void reset() {
+        this.currentPlayerIndex = 0;
+        this.diceValue = 0;
+        this.movesRemaining = 0;
+        this.phase = TurnPhase.WAITING_FOR_ROLL;
+    }
 
     private TurnManager() {
         this.phase = TurnPhase.WAITING_FOR_ROLL;
