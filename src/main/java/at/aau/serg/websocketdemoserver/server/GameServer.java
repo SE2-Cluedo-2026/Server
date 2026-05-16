@@ -34,8 +34,8 @@ import java.util.Map;
 
 @Service
 public class GameServer {
-    //@Autowired
-    //private DatabaseService dbService;
+    @Autowired
+    private DatabaseService dbService;
     private final LobbyManager lobbyManager = new LobbyManager();
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -86,7 +86,7 @@ public class GameServer {
 
         if (playerIsNew) {
             response.put("type", LobbyMessageType.NEW_PLAYER_JOINED.toString());
-            //dbService.saveGame(lobbyManager.getGame());
+            dbService.saveGame(lobbyManager.getGame());
         } else {
             response.put("type", LobbyMessageType.PLAYER_REJOINED.toString());
             Player rejoinedPlayer = null;
@@ -114,7 +114,7 @@ public class GameServer {
         responsePayload.put("playerId",playerId);
 
         if(removed) {
-            //dbService.removePlayer(playerId);
+            dbService.removePlayer(playerId);
             response.put("type", LobbyMessageType.PLAYER_REMOVED.toString());
         } else {
             response.put("type", "LEAVE_ERROR");
@@ -134,7 +134,7 @@ public class GameServer {
             boolean success = lobbyManager.setCharacterTypeAndStatusReady(playerId, characterType);
 
             if (success) {
-                //dbService.saveGame(lobbyManager.getGame());
+                dbService.saveGame(lobbyManager.getGame());
 
                 response.put("type",
                         LobbyMessageType.SET_CHARACTER_TYPE_AND_STATUS_READY.toString());
@@ -173,6 +173,7 @@ public class GameServer {
         response.set("payload", responsePayload);
         return response;
     }
+
     public ObjectNode startGame(JsonNode payload) {
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
@@ -180,7 +181,7 @@ public class GameServer {
         if (lobbyManager.canStartGame()) {
             Game game = lobbyManager.getGame();
             game.start();
-            //dbService.saveGame(game);
+            dbService.saveGame(game);
 
             response.put("type", LobbyMessageType.GAME_STARTED.toString());
             responsePayload.put("gameId", game.getGameId());
@@ -297,7 +298,11 @@ public class GameServer {
 
         try {
             game.endTurn();
-            //dbService.saveGame(game);
+            dbService.updateCurrentPlayer(
+                    game.getTurnManager().getCurrentPlayerId(),
+                    game.getTurnManager().getDiceValue(),
+                    game.getTurnManager().getPhase().toString()
+            );
 
             response.put("type", GameMessageType.END_TURN.toString());
             responsePayload.put("gameId", game.getGameId());
@@ -344,7 +349,11 @@ public class GameServer {
             }
 
             int value = game.getTurnManager().rollDice();
-            //dbService.saveGame(game);
+            dbService.updateCurrentPlayer(
+                    game.getTurnManager().getCurrentPlayerId(),
+                    game.getTurnManager().getDiceValue(),
+                    game.getTurnManager().getPhase().toString()
+            );
 
             responsePayload.put("playerId", playerId);
             responsePayload.put("value", value);
@@ -398,6 +407,13 @@ public class GameServer {
             player.setCurrentPosition(pos);
             game.getTurnManager().decrementMove(isInRoom);
 
+            dbService.updatePlayerPosition(playerId, player.getCurrentPosition());
+            dbService.updateCurrentPlayer(
+                    game.getTurnManager().getCurrentPlayerId(),
+                    game.getTurnManager().getDiceValue(),
+                    game.getTurnManager().getPhase().toString()
+            );
+
             if (!isInRoom && game.getTurnManager().getMovesRemaining() == 0) {
                 if (pos.getPositionType() == PositionType.BOARD) {
                     Field field = game.getBoard().getFields()[pos.getX()][pos.getY()];
@@ -446,6 +462,13 @@ public class GameServer {
             player.setCurrentPosition(pos);
 
             game.getTurnManager().enterRoom();
+
+            dbService.updatePlayerPosition(playerId, player.getCurrentPosition());
+            dbService.updateCurrentPlayer(
+                    game.getTurnManager().getCurrentPlayerId(),
+                    game.getTurnManager().getDiceValue(),
+                    game.getTurnManager().getPhase().toString()
+            );
 
             responsePayload.put("playerId", playerId);
             responsePayload.put("roomId", roomId);
@@ -511,6 +534,8 @@ public class GameServer {
             newPos.setRoomType(targetRoom);
             player.setCurrentPosition(newPos);
 
+            dbService.updatePlayerPosition(playerId, player.getCurrentPosition());
+
             responsePayload.put("playerId", playerId);
             responsePayload.put("targetRoom", targetRoom.toString());
             responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
@@ -572,13 +597,18 @@ public class GameServer {
 
             if (correct) {
                 game.finish();
+                dbService.updateGameStatus(game.getStatus().toString(), game.getCurrentPhase().toString());
                 response.put("type", GameMessageType.GAME_FINISHED.toString());
                 responsePayload.put("winner", accuserID);
             } else {
                 accuser.eliminate();
+                dbService.updatePlayerFlags(accuserID, accuser.isEliminated(), accuser.isCheatUsed(),
+                        accuser.isAccusationUsed()
+                );
 
                 if (game.allPlayersEliminated()) {
                     game.abort();
+                    dbService.updateGameStatus(game.getStatus().toString(), game.getCurrentPhase().toString());
                     response.put("type", GameMessageType.GAME_ABORTED.toString());
                     responsePayload.put("reason", "All players eliminated");
                 } else {
@@ -672,8 +702,7 @@ public class GameServer {
 
                     matchingCardsArray.add(cardNode);
                 }
-
-                //dbService.saveSeenCards(suggesterID, suggestion.getMatchingCards());
+                dbService.saveSeenCards(suggesterID, suggestion.getMatchingCards());
             } else {
                 responsePayload.put("responderID", "");
             }

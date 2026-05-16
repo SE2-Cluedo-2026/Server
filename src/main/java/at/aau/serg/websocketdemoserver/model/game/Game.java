@@ -176,4 +176,11 @@ public class Game {
     public Deck getDeck() {
         return deck;
     }
+
+    public void restoreState(GameStatus status, TurnPhase currentPhase, List<Player> players, CaseFile caseFile) {
+        this.status = status;
+        this.currentPhase = currentPhase;
+        this.players = players;
+        this.caseFile = caseFile;
+    }
 }
