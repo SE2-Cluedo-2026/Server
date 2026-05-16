@@ -19,9 +19,9 @@ public class BoardFactory {
         for (int x = 0; x < fields.length; x++) {
             for (int y = 0; y < fields[x].length; y++) {
                 if((y == 0 || y == fields[x].length-1) && (x == 0 || x == fields.length/2 || x == fields.length-1)) {
-                    fields[x][y] = new Field(FieldType.DOOR_FIELD);
+                    fields[x][y] = new Field(FieldType.DOOR_FIELD, x, y);
                 } else {
-                    fields[x][y] = new Field(FieldType.HALLWAY_FIELD);
+                    fields[x][y] = new Field(FieldType.HALLWAY_FIELD, x, y);
                 }
             }
         }
