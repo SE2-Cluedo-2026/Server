@@ -66,4 +66,8 @@ public class LobbyManager {
                 && game.getPlayers().size() == 4
                 && game.getPlayers().stream().allMatch(Player::isReady);
     }
+    public boolean isPlayerInGame(String playerId) {
+        return game.getPlayers().stream()
+                .anyMatch(p -> p.getPlayerId().equals(playerId));
+    }
 }
