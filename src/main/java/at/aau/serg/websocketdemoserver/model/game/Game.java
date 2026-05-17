@@ -4,6 +4,7 @@ import at.aau.serg.websocketdemoserver.model.board.Board;
 import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
 import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
+import at.aau.serg.websocketdemoserver.model.board.Position;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Arrays;
@@ -103,6 +104,14 @@ public class Game {
         this.deck = new Deck();
         this.caseFile = deck.createCaseFile();
         this.deck.dealCards(this.players);
+
+        for (Player p : players) {
+        if (p.getCurrentPosition() == null) {
+            Position spawn = new Position();
+            spawn.setBoardPosition(0, 0);
+            p.setCurrentPosition(spawn);
+        }
+    }
     }
 
     public void finish() {
