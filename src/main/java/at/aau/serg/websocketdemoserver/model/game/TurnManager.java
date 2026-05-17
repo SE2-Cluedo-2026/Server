@@ -95,4 +95,11 @@ public class TurnManager {
     public TurnPhase getPhase() {
         return phase;
     }
+
+    public void restoreState(int currentPlayerIndex, int diceValue, TurnPhase phase) {
+        this.currentPlayerIndex = currentPlayerIndex;
+        this.diceValue = diceValue;
+        this.movesRemaining = 0;
+        this.phase = phase;
+    }
 }
