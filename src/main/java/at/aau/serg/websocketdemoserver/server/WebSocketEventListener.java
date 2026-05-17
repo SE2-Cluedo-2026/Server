@@ -52,6 +52,8 @@ public class WebSocketEventListener {
 
         String playerId = sessionToPlayer.remove(sessionId);
         if (playerId == null) return;
+        System.out.println("[Disconnect] PlayerId: " + playerId);         // ← NEU
+        System.out.println("[Disconnect] Game Status: " + Game.getINSTANCE().getStatus()); // ← NEU
 
         Game game = Game.getINSTANCE();
 
@@ -107,6 +109,7 @@ public class WebSocketEventListener {
             }
 
         }, 30, TimeUnit.SECONDS);
+        System.out.println("[Disconnect] Timer started for: " + playerId); // ← NEU
 
         disconnectTimers.put(playerId, timer);
     }
