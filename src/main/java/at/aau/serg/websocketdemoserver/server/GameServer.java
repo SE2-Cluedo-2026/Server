@@ -15,7 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ConcurrentHashMap; // NEU
+import java.util.concurrent.ConcurrentHashMap;
 import at.aau.serg.websocketdemoserver.model.board.Field;
 import at.aau.serg.websocketdemoserver.model.enums.FieldType;
 import at.aau.serg.websocketdemoserver.model.enums.PositionType;
@@ -87,21 +87,103 @@ public class GameServer {
         if (playerIsNew) {
             response.put("type", LobbyMessageType.NEW_PLAYER_JOINED.toString());
             dbService.saveGame(lobbyManager.getGame());
-        } else {
-            response.put("type", LobbyMessageType.PLAYER_REJOINED.toString());
-            Player rejoinedPlayer = null;
-            for (Player p : lobbyManager.getPlayers()) {
-                if (p.getPlayerId().equals(playerKey)) {
-                    rejoinedPlayer = p;
-                    break;
-                }
-            }
-            if (rejoinedPlayer != null && rejoinedPlayer.getCharacter() == null) {
-                responsePayload.set("availableCharacters", availableCharacters);
+            response.set("payload", responsePayload);
+            return response;
+        }
+
+        Game game = lobbyManager.getGame();
+        Player rejoinedPlayer = null;
+        for (Player p : lobbyManager.getPlayers()) {
+            if (p.getPlayerId().equals(playerKey)) {
+                rejoinedPlayer = p;
+                break;
             }
         }
 
-        response.set("payload", responsePayload);
+        if (game.isRunning()) {
+            response.put("type", LobbyMessageType.PLAYER_REJOINED_RUNNING.toString());
+            ObjectNode runningPayload = mapper.createObjectNode();
+
+            runningPayload.put("playerId", playerKey);
+
+            runningPayload.put("gameId", game.getGameId());
+            runningPayload.put("gameStatus", game.getStatus().toString());
+
+            if (rejoinedPlayer != null && rejoinedPlayer.getCharacter() != null) {
+                runningPayload.put("myCharacter", rejoinedPlayer.getCharacter().toString());
+            }
+
+            ArrayNode myCards = mapper.createArrayNode();
+            if (rejoinedPlayer != null && rejoinedPlayer.getCards() != null) {
+                for (Card c : rejoinedPlayer.getCards()) {
+                    ObjectNode cardNode = mapper.createObjectNode();
+                    cardNode.put("cardId", c.getCardId());
+                    cardNode.put("name", c.getName());
+                    cardNode.put("type", c.getClass().getSimpleName());
+                    myCards.add(cardNode);
+                }
+            }
+            runningPayload.set("myCards", myCards);
+
+            runningPayload.put("isEliminated",
+                    rejoinedPlayer != null && rejoinedPlayer.isEliminated());
+
+            ArrayNode playersArray = mapper.createArrayNode();
+            ObjectNode playerPositions = mapper.createObjectNode();
+            ObjectNode playerCharacterMap = mapper.createObjectNode();
+            ArrayNode eliminatedPlayers = mapper.createArrayNode();
+
+            for (Player p : game.getPlayers()) {
+                ObjectNode playerNode = mapper.createObjectNode();
+                playerNode.put("playerId", p.getPlayerId());
+                playerNode.put("ready", p.isReady());
+                playerNode.put("eliminated", p.isEliminated());
+
+                if (p.getCharacter() != null) {
+                    playerNode.put("characterType", p.getCharacter().toString());
+                    playerCharacterMap.put(p.getPlayerId(), p.getCharacter().toString());
+                }
+
+                if (p.getCurrentPosition() != null) {
+                    String posStr = positionToString(p.getCurrentPosition());
+                    playerNode.put("position", posStr);
+                    playerPositions.put(p.getPlayerId(), posStr);
+                }
+
+                if (p.isEliminated()) {
+                    eliminatedPlayers.add(p.getPlayerId());
+                }
+
+                playersArray.add(playerNode);
+            }
+
+            runningPayload.set("players", playersArray);
+            runningPayload.set("playerPositions", playerPositions);
+            runningPayload.set("playerCharacterMap", playerCharacterMap);
+            runningPayload.set("eliminatedPlayers", eliminatedPlayers);
+
+            // TurnManager state
+            runningPayload.put("currentPlayerId",
+                    game.getTurnManager().getCurrentPlayerId(game.getPlayers()));
+            runningPayload.put("currentPlayerIndex",
+                    game.getTurnManager().getCurrentPlayerId());
+            runningPayload.put("currentPhase",
+                    game.getCurrentPhase().toString());
+            runningPayload.put("diceValue",
+                    game.getTurnManager().getDiceValue());
+            runningPayload.put("remainingMoves",
+                    game.getTurnManager().getMovesRemaining());
+
+            response.set("payload", runningPayload);
+
+        } else {
+            response.put("type", LobbyMessageType.PLAYER_REJOINED.toString());
+            if (rejoinedPlayer != null && rejoinedPlayer.getCharacter() == null) {
+                responsePayload.set("availableCharacters", availableCharacters);
+            }
+            response.set("payload", responsePayload);
+        }
+
         return response;
     }
 
@@ -729,5 +811,12 @@ public class GameServer {
             }
         }
         return null;
+    }
+    private String positionToString(Position pos) {
+        if (pos == null) return "";
+        if (pos.getPositionType() == PositionType.ROOM && pos.getRoom() != null) {
+            return pos.getRoom().toString();
+        }
+        return pos.getX() + "," + pos.getY();
     }
 }
