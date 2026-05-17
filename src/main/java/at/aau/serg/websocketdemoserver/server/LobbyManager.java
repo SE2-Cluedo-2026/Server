@@ -20,6 +20,9 @@ public class LobbyManager {
     }
 
     public boolean addPlayer(String playerKey) {
+        if (game.getStatus() == GameStatus.RUNNING) {
+            return false; // false = nicht neu = Rejoin
+        }
         if (game.getStatus() != GameStatus.LOBBY) {
             return false;
         }
@@ -62,5 +65,9 @@ public class LobbyManager {
         return game.getStatus() == GameStatus.LOBBY
                 && game.getPlayers().size() == 4
                 && game.getPlayers().stream().allMatch(Player::isReady);
+    }
+    public boolean isPlayerInGame(String playerId) {
+        return game.getPlayers().stream()
+                .anyMatch(p -> p.getPlayerId().equals(playerId));
     }
 }
