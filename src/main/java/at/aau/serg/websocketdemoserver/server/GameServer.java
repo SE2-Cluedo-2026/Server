@@ -45,7 +45,110 @@ public class GameServer {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final Map<String, ScheduledFuture<?>> scheduledEndTurns = new ConcurrentHashMap<>();
 
+    @Autowired
+    private WebSocketEventListener eventListener;
     public GameServer() {}
+
+    public ObjectNode joinLobby(JsonNode payload) {
+        String playerKey = payload.get("playerKey").asText();
+        System.out.println("[JoinLobby] playerKey: " + playerKey);
+        System.out.println("[JoinLobby] game.isRunning(): " + lobbyManager.getGame().isRunning());
+
+        ObjectNode response = mapper.createObjectNode();
+        ObjectNode responsePayload = mapper.createObjectNode();
+        Game game = lobbyManager.getGame();
+
+        // SCHRITT 1: Rejoin während RUNNING - ZUERST prüfen!
+        if (game.isRunning() && lobbyManager.isPlayerInGame(playerKey)) {
+            System.out.println("[JoinLobby] RUNNING Rejoin erkannt!");
+            eventListener.onPlayerRejoined(playerKey);
+
+            response.put("type", LobbyMessageType.PLAYER_REJOINED.toString());
+            responsePayload.put("playerId", playerKey);
+            responsePayload.put("gameStatus", "RUNNING");
+            responsePayload.put("currentPlayerId", game.getTurnManager().getCurrentPlayerId());
+            responsePayload.put("currentPhase", game.getCurrentPhase().toString());
+
+            Player rejoinedPlayer = findPlayer(game, playerKey);
+            if (rejoinedPlayer != null) {
+                responsePayload.put("characterType", rejoinedPlayer.getCharacter().toString());
+                ArrayNode cardsArray = mapper.createArrayNode();
+                if (rejoinedPlayer.getCards() != null) {
+                    for (Card c : rejoinedPlayer.getCards()) {
+                        ObjectNode cardNode = mapper.createObjectNode();
+                        cardNode.put("cardId", c.getCardId());
+                        cardNode.put("name", c.getName());
+                        cardNode.put("type", c.getClass().getSimpleName());
+                        cardsArray.add(cardNode);
+                    }
+                }
+                responsePayload.set("myCards", cardsArray);
+            }
+
+            ArrayNode playersArray = mapper.createArrayNode();
+            for (Player p : game.getPlayers()) {
+                ObjectNode playerNode = mapper.createObjectNode();
+                playerNode.put("playerId", p.getPlayerId());
+                playerNode.put("characterType", p.getCharacter() != null ? p.getCharacter().toString() : "");
+                playerNode.put("eliminated", p.isEliminated());
+                if (p.getCurrentPosition() != null) {
+                    playerNode.put("position", p.getCurrentPosition().toString());
+                }
+                playersArray.add(playerNode);
+            }
+            responsePayload.set("players", playersArray);
+            responsePayload.set("existingPlayers", playersArray);
+
+            response.set("payload", responsePayload);
+            return response;
+        }
+
+        // SCHRITT 2: isGameFull prüfen
+        if (lobbyManager.isGameFull()) {
+            response.put("type", LobbyMessageType.GAME_FULL.toString());
+            responsePayload.put("playerId", playerKey);
+            responsePayload.put("message", "Lobby is full");
+            response.set("payload", responsePayload);
+            return response;
+        }
+
+        // SCHRITT 3: Normaler Join/Rejoin in LOBBY
+        boolean playerIsNew = lobbyManager.addPlayer(playerKey);
+        responsePayload.put("playerId", playerKey);
+
+        ArrayNode availableCharacters = mapper.createArrayNode();
+        for (CharacterType c : lobbyManager.getAvailableCharacters()) {
+            availableCharacters.add(c.toString());
+        }
+        responsePayload.set("availableCharacters", availableCharacters);
+
+        ArrayNode existingPlayers = mapper.createArrayNode();
+        for (Player p : lobbyManager.getPlayers()) {
+            ObjectNode playerNode = mapper.createObjectNode();
+            playerNode.put("playerId", p.getPlayerId());
+            playerNode.put("ready", p.isReady());
+            if (p.getCharacter() != null) {
+                playerNode.put("characterType", p.getCharacter().toString());
+            }
+            existingPlayers.add(playerNode);
+        }
+        responsePayload.set("existingPlayers", existingPlayers);
+
+        if (playerIsNew) {
+            response.put("type", LobbyMessageType.NEW_PLAYER_JOINED.toString());
+        } else {
+            response.put("type", LobbyMessageType.PLAYER_REJOINED.toString());
+            responsePayload.put("gameStatus", "LOBBY");
+            Player rejoinedPlayer = findPlayer(game, playerKey);
+            if (rejoinedPlayer != null && rejoinedPlayer.getCharacter() == null) {
+                responsePayload.set("availableCharacters", availableCharacters);
+            }
+        }
+
+        response.set("payload", responsePayload);
+        return response;
+    }
+    /*
     public ObjectNode joinLobby(JsonNode payload) {
         String playerKey = payload.get("playerKey").asText();
         ObjectNode response = mapper.createObjectNode();
