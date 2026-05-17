@@ -20,6 +20,9 @@ public class LobbyManager {
     }
 
     public boolean addPlayer(String playerKey) {
+        if (game.getStatus() == GameStatus.RUNNING) {
+            return false; // false = nicht neu = Rejoin
+        }
         if (game.getStatus() != GameStatus.LOBBY) {
             return false;
         }
