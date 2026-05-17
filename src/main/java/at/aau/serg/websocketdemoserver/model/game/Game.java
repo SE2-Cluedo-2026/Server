@@ -27,8 +27,8 @@ public class Game {
         this.status = GameStatus.LOBBY;
         this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
         this.players = new ArrayList<>();
-        this.board = board.getINSTANCE();
-        this.turnManager = turnManager.getINSTANCE();
+        this.board = Board.getINSTANCE();
+        this.turnManager = TurnManager.getINSTANCE();
         this.deck = new Deck();
     }
 
@@ -37,8 +37,8 @@ public class Game {
         this.status = GameStatus.LOBBY;
         this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
         this.players = new ArrayList<>();
-        this.board = board.getINSTANCE();
-        this.turnManager = turnManager.getINSTANCE();
+        this.board = Board.getINSTANCE();
+        this.turnManager = TurnManager.getINSTANCE();
         this.caseFile = null;
     }
 
@@ -100,6 +100,7 @@ public class Game {
         this.status = GameStatus.RUNNING;
         this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
         this.turnManager = TurnManager.getINSTANCE();
+        this.turnManager.reset();
         this.deck = new Deck();
         this.caseFile = deck.createCaseFile();
         this.deck.dealCards(this.players);
@@ -114,11 +115,29 @@ public class Game {
     }
 
     public void abort() {
-        this.status = GameStatus.ABORTED;
+        //this.status = GameStatus.ABORTED;
 
         if (this.caseFile != null) {
             this.caseFile.clear();
         }
+        this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
+        this.caseFile = null;
+        this.deck = new Deck();
+
+        for(Player player : players) {
+            player.setReady(false);
+            player.setCharacter(null);
+            player.setCards(null);
+            player.setCurrentPosition(null);
+            player.setEliminated(false);
+            player.setCheatUsed(false);
+            player.setAccusationUsed(false);
+            player.setActive(true);
+        }
+        this.turnManager = TurnManager.getINSTANCE();
+        this.turnManager.reset();
+
+        this.status = GameStatus.LOBBY;
     }
 
     public void makeSuggestion() {
@@ -175,5 +194,12 @@ public class Game {
 
     public Deck getDeck() {
         return deck;
+    }
+
+    public void restoreState(GameStatus status, TurnPhase currentPhase, List<Player> players, CaseFile caseFile) {
+        this.status = status;
+        this.currentPhase = currentPhase;
+        this.players = players;
+        this.caseFile = caseFile;
     }
 }
