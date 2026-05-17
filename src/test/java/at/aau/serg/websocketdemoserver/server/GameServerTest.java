@@ -31,6 +31,8 @@ import tools.jackson.databind.node.ObjectNode;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -41,6 +43,12 @@ class GameServerTest {
     @Mock
     private LobbyManager lobbyManager;
 
+    @Mock
+    private DatabaseService dbService;
+
+    @Mock
+    private SimpMessagingTemplate messagingTemplate;
+
     private GameServer gameServer;
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -48,6 +56,8 @@ class GameServerTest {
     void setUp() {
         gameServer = new GameServer();
         ReflectionTestUtils.setField(gameServer, "lobbyManager", lobbyManager);
+        ReflectionTestUtils.setField(gameServer, "dbService", dbService);
+        ReflectionTestUtils.setField(gameServer, "messagingTemplate", messagingTemplate);
         resetTurnManager();
     }
 
@@ -102,16 +112,20 @@ class GameServerTest {
     @Test
     void joinLobbyRejoinedPlayerWithoutCharacterGetsAvailableCharacters() throws Exception {
         Player rejoined = new Player("player1");
+        Game game = mock(Game.class);
 
         when(lobbyManager.isGameFull()).thenReturn(false);
         when(lobbyManager.addPlayer("player1")).thenReturn(false);
         when(lobbyManager.getAvailableCharacters()).thenReturn(List.of(CharacterType.MRS_PINK));
         when(lobbyManager.getPlayers()).thenReturn(List.of(rejoined));
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
 
         ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"player1\"}"));
 
         assertEquals(LobbyMessageType.PLAYER_REJOINED.toString(), response.get("type").asText());
-        assertEquals(CharacterType.MRS_PINK.toString(), response.get("payload").get("availableCharacters").get(0).asText());
+        assertEquals(CharacterType.MRS_PINK.toString(),
+                response.get("payload").get("availableCharacters").get(0).asText());
     }
 
     @Test
@@ -315,6 +329,8 @@ class GameServerTest {
         when(game.getPlayers()).thenReturn(List.of(accuser));
         when(game.getCaseFile()).thenReturn(matchingCaseFile());
         when(game.getGameId()).thenReturn("game-1");
+        when(game.getStatus()).thenReturn(GameStatus.FINISHED);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.TURN_ENDED);
 
         ObjectNode response = gameServer.handleAccusation(mapper.readTree(
                 "{\"accuserID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
@@ -357,6 +373,8 @@ class GameServerTest {
         when(game.getCaseFile()).thenReturn(matchingCaseFile());
         when(game.getGameId()).thenReturn("game-1");
         when(game.allPlayersEliminated()).thenReturn(true);
+        when(game.getStatus()).thenReturn(GameStatus.ABORTED);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.TURN_ENDED);
 
         ObjectNode response = gameServer.handleAccusation(mapper.readTree(
                 "{\"accuserID\":\"player1\",\"suspect\":\"DR_BLUE\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
@@ -462,6 +480,8 @@ class GameServerTest {
         when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
         when(game.getTurnManager()).thenReturn(turnManager);
         when(turnManager.getCurrentPlayerId()).thenReturn(2);
+        when(turnManager.getDiceValue()).thenReturn(0);
+        when(turnManager.getPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
 
         ObjectNode response = gameServer.endTurn(
                 mapper.readTree("{\"playerId\":\"player1\"}")
@@ -469,10 +489,8 @@ class GameServerTest {
 
         assertEquals(GameMessageType.END_TURN.toString(), response.get("type").asText());
         assertEquals("game-1", response.get("payload").get("gameId").asText());
-        assertEquals("WAITING_FOR_ROLL",
-                response.get("payload").get("currentPhase").asText());
-        assertEquals(2,
-                response.get("payload").get("currentPlayerIndex").asInt());
+        assertEquals("WAITING_FOR_ROLL", response.get("payload").get("currentPhase").asText());
+        assertEquals(2, response.get("payload").get("currentPlayerIndex").asInt());
 
         verify(game).endTurn();
     }
@@ -803,4 +821,315 @@ class GameServerTest {
         assertEquals("Player not found",
                 response.get("payload").get("reason").asText());
     }
+
+    @Test
+    void joinLobbyRejoinedRunningReturnsCompleteStateWithCardsPositionsAndEliminations() throws Exception {
+        Game game = mock(Game.class);
+        TurnManager turnManager = mock(TurnManager.class);
+
+        Player rejoined = new Player("player1");
+        rejoined.setCharacter(CharacterType.MRS_PINK);
+        rejoined.setCards(List.of(new SuspectCard("s1", "Mrs Pink", CharacterType.MRS_PINK)));
+
+        Player eliminated = new Player("player2");
+        eliminated.setCharacter(CharacterType.DR_BLUE);
+        eliminated.eliminate();
+        Position boardPos = new Position();
+        boardPos.setBoardPosition(2, 3);
+        eliminated.setCurrentPosition(boardPos);
+
+        Player roomPlayer = new Player("player3");
+        Position roomPos = new Position();
+        roomPos.setRoomType(RoomType.KITCHEN);
+        roomPlayer.setCurrentPosition(roomPos);
+
+        when(lobbyManager.isGameFull()).thenReturn(false);
+        when(lobbyManager.addPlayer("player1")).thenReturn(false);
+        when(lobbyManager.getAvailableCharacters()).thenReturn(List.of(CharacterType.DR_RED));
+        when(lobbyManager.getPlayers()).thenReturn(List.of(rejoined, eliminated));
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(game.getGameId()).thenReturn("game-1");
+        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
+        when(game.getPlayers()).thenReturn(List.of(rejoined, eliminated, roomPlayer));
+        when(game.getTurnManager()).thenReturn(turnManager);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_MOVE);
+        when(turnManager.getCurrentPlayerId(game.getPlayers())).thenReturn("player1");
+        when(turnManager.getCurrentPlayerId()).thenReturn(0);
+        when(turnManager.getDiceValue()).thenReturn(6);
+        when(turnManager.getMovesRemaining()).thenReturn(4);
+
+        ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"player1\"}"));
+
+        assertEquals(LobbyMessageType.PLAYER_REJOINED_RUNNING.toString(), response.get("type").asText());
+        JsonNode payload = response.get("payload");
+        assertEquals("game-1", payload.get("gameId").asText());
+        assertEquals("MRS_PINK", payload.get("myCharacter").asText());
+        assertEquals("s1", payload.get("myCards").get(0).get("cardId").asText());
+        assertFalse(payload.get("isEliminated").asBoolean());
+        assertEquals("2,3", payload.get("playerPositions").get("player2").asText());
+        assertEquals("KITCHEN", payload.get("playerPositions").get("player3").asText());
+        assertEquals("DR_BLUE", payload.get("playerCharacterMap").get("player2").asText());
+        assertEquals("player2", payload.get("eliminatedPlayers").get(0).asText());
+        assertEquals("player1", payload.get("currentPlayerId").asText());
+        assertEquals(6, payload.get("diceValue").asInt());
+        assertEquals(4, payload.get("remainingMoves").asInt());
+    }
+
+    @Test
+    void joinLobbyRejoinedRunningWithoutMatchingPlayerStillReturnsEmptyOptionalFields() throws Exception {
+        Game game = mock(Game.class);
+        TurnManager turnManager = mock(TurnManager.class);
+
+        when(lobbyManager.isGameFull()).thenReturn(false);
+        when(lobbyManager.addPlayer("ghost")).thenReturn(false);
+        when(lobbyManager.getAvailableCharacters()).thenReturn(List.of());
+        when(lobbyManager.getPlayers()).thenReturn(List.of(new Player("other")));
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(game.getGameId()).thenReturn("game-1");
+        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
+        when(game.getPlayers()).thenReturn(List.of());
+        when(game.getTurnManager()).thenReturn(turnManager);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+        when(turnManager.getCurrentPlayerId(game.getPlayers())).thenReturn("");
+
+        ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"ghost\"}"));
+
+        assertEquals(LobbyMessageType.PLAYER_REJOINED_RUNNING.toString(), response.get("type").asText());
+        assertFalse(response.get("payload").has("myCharacter"));
+        assertEquals(0, response.get("payload").get("myCards").size());
+        assertFalse(response.get("payload").get("isEliminated").asBoolean());
+    }
+
+    @Test
+    void rejoinedLobbyPlayerWithCharacterDoesNotReceiveAvailableCharactersAgain() throws Exception {
+        Player rejoined = new Player("player1");
+        rejoined.setCharacter(CharacterType.DR_RED);
+        Game game = mock(Game.class);
+
+        when(lobbyManager.isGameFull()).thenReturn(false);
+        when(lobbyManager.addPlayer("player1")).thenReturn(false);
+        when(lobbyManager.getAvailableCharacters()).thenReturn(List.of(CharacterType.MRS_PINK));
+        when(lobbyManager.getPlayers()).thenReturn(List.of(rejoined));
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
+
+        ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"player1\"}"));
+
+        assertEquals(LobbyMessageType.PLAYER_REJOINED.toString(), response.get("type").asText());
+        assertTrue(response.get("payload").has("availableCharacters"));
+    }
+
+    @Test
+    void startGameHandlesPlayerWithoutCards() throws Exception {
+        Game game = mock(Game.class);
+        Player player = new Player("player1");
+
+        when(lobbyManager.canStartGame()).thenReturn(true);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getGameId()).thenReturn("game-1");
+        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+        when(game.getTurnManager()).thenReturn(TurnManager.getINSTANCE());
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        ObjectNode response = gameServer.startGame(mapper.readTree("{}"));
+
+        assertEquals(LobbyMessageType.GAME_STARTED.toString(), response.get("type").asText());
+        assertEquals(0, response.get("payload").get("players").get(0).get("cards").size());
+        verify(game).start();
+        verify(dbService).saveGame(game);
+    }
+
+    @Test
+    void endTurnReturnsErrorWhenGameRejectsEndTurn() throws Exception {
+        Game game = mock(Game.class);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getGameId()).thenReturn("game-1");
+        doThrow(new IllegalStateException("nope")).when(game).endTurn();
+
+        ObjectNode response = gameServer.endTurn(mapper.readTree("{}"));
+
+        assertEquals("END_TURN_ERROR", response.get("type").asText());
+        assertEquals("nope", response.get("payload").get("reason").asText());
+    }
+
+    @Test
+    void rollDiceHandlesUnexpectedException() throws Exception {
+        when(lobbyManager.getGame()).thenThrow(new RuntimeException("db down"));
+
+        ObjectNode response = gameServer.rollDice(mapper.readTree("{\"playerId\":\"player1\"}"));
+
+        assertEquals("ROLL_DICE_ERROR", response.get("type").asText());
+        assertTrue(response.get("payload").get("reason").asText().contains("db down"));
+    }
+
+    @Test
+    void rollDiceReturnsNotYourTurnWhenCurrentPlayerIsNull() throws Exception {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(game.getCurrentPlayer()).thenReturn(null);
+
+        ObjectNode response = gameServer.rollDice(mapper.readTree("{\"playerId\":\"player1\"}"));
+
+        assertEquals("ROLL_DICE_ERROR", response.get("type").asText());
+        assertEquals("It is not your turn", response.get("payload").get("reason").asText());
+    }
+
+    @Test
+    void moveFallsBackToZeroZeroForUnknownRoomName() throws Exception {
+        Game game = mock(Game.class);
+        Player player = new Player("player1");
+        TurnManager turnManager = mock(TurnManager.class);
+        Board board = mock(Board.class);
+        Field[][] fields = new Field[1][1];
+        fields[0][0] = new Field(FieldType.HALLWAY_FIELD);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getPlayers()).thenReturn(List.of(player));
+        when(game.getTurnManager()).thenReturn(turnManager);
+        when(turnManager.getMovesRemaining()).thenReturn(0);
+        when(turnManager.getPhase()).thenReturn(TurnPhase.WAITING_FOR_MOVE);
+        when(game.getBoard()).thenReturn(board);
+        when(board.getFields()).thenReturn(fields);
+
+        ObjectNode response = gameServer.move(mapper.readTree("{\"playerId\":\"player1\",\"position\":\"NOT_A_ROOM\"}"));
+
+        assertEquals(GameMessageType.MOVE.toString(), response.get("type").asText());
+        assertEquals(0, player.getCurrentPosition().getX());
+        assertEquals(0, player.getCurrentPosition().getY());
+        verify(turnManager).decrementMove(false);
+    }
+
+    @Test
+    void enterRoomReturnsPlayerNotFound() throws Exception {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getPlayers()).thenReturn(List.of());
+
+        ObjectNode response = gameServer.enterRoom(mapper.readTree("{\"playerId\":\"missing\",\"roomId\":\"KITCHEN\"}"));
+
+        assertEquals("ENTER_ROOM_ERROR", response.get("type").asText());
+        assertEquals("Player not found", response.get("payload").get("reason").asText());
+    }
+
+    @Test
+    void takeHiddenWayReturnsGenericErrorWhenPayloadMissesPlayerId() throws Exception {
+        ObjectNode response = gameServer.takeHiddenWay(mapper.readTree("{}"));
+
+        assertEquals("HIDDEN_WAY_ERROR", response.get("type").asText());
+        assertTrue(response.get("payload").get("reason").asText().startsWith("Error taking hidden way:"));
+    }
+
+    @Test
+    void handleAccusationReturnsGameNotRunning() throws Exception {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
+
+        ObjectNode response = gameServer.handleAccusation(mapper.readTree("{\"accuserID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
+
+        assertEquals("ACCUSATION_ERROR", response.get("type").asText());
+        assertEquals("Game is not running", response.get("payload").get("reason").asText());
+    }
+
+    @Test
+    void handleAccusationReturnsGenericErrorWhenPayloadFieldMissing() throws Exception {
+        ObjectNode response = gameServer.handleAccusation(mapper.readTree("{\"accuserID\":\"player1\"}"));
+
+        assertEquals("ACCUSATION_ERROR", response.get("type").asText());
+        assertTrue(response.get("payload").get("reason").asText().startsWith("Error processing accusation:"));
+    }
+
+    @Test
+    void handleSuggestionReturnsErrorWhenSuggesterIsEliminated() throws Exception {
+        Game game = mock(Game.class);
+        Player player = new Player("player1");
+        player.eliminate();
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        ObjectNode response = gameServer.handleSuggestion(mapper.readTree("{\"suggesterID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
+
+        assertEquals(GameMessageType.SUGGESTION_ERROR.toString(), response.get("type").asText());
+        assertEquals("Eliminated players cannot make suggestions", response.get("payload").get("reason").asText());
+    }
+
+    @Test
+    void handleSuggestionReturnsNoResponderWithEmptyMatchingCards() throws Exception {
+        Game game = mock(Game.class);
+        Player suggester = new Player("player1");
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
+        when(game.getPlayers()).thenReturn(List.of(suggester));
+        when(game.getGameId()).thenReturn("game-1");
+        when(game.getCurrentPlayer()).thenReturn(null);
+
+        ObjectNode response = gameServer.handleSuggestion(mapper.readTree("{\"suggesterID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
+
+        assertEquals(GameMessageType.SUGGESTION_RESULT.toString(), response.get("type").asText());
+        assertEquals("", response.get("payload").get("responderID").asText());
+        assertEquals(0, response.get("payload").get("matchingCards").size());
+    }
+
+    @Test
+    void privatePositionToStringHandlesNullBoardAndRoom() {
+        Position board = new Position();
+        board.setBoardPosition(7, 8);
+        Position room = new Position();
+        room.setRoomType(RoomType.LIBRARY);
+
+        assertEquals("", ReflectionTestUtils.invokeMethod(gameServer, "positionToString", (Position) null));
+        assertEquals("7,8", ReflectionTestUtils.invokeMethod(gameServer, "positionToString", board));
+        assertEquals("LIBRARY", ReflectionTestUtils.invokeMethod(gameServer, "positionToString", room));
+    }
+
+    @Test
+    void privateAutoEndTurnDoesNothingWhenNoGameOrNoCurrentPlayer() {
+        when(lobbyManager.getGame()).thenReturn(null);
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", 0);
+        Map<?, ?> scheduled = (Map<?, ?>) ReflectionTestUtils.getField(gameServer, "scheduledEndTurns");
+        assertTrue(scheduled.isEmpty());
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getCurrentPlayer()).thenReturn(null);
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", 0);
+        assertTrue(scheduled.isEmpty());
+    }
+
+    @Test
+    void privateCancelScheduledEndTurnCancelsStoredFuture() {
+        ScheduledFuture<?> future = mock(ScheduledFuture.class);
+        when(future.isDone()).thenReturn(false);
+        Map<String, ScheduledFuture<?>> scheduled = new ConcurrentHashMap<>();
+        scheduled.put("game-1", future);
+        ReflectionTestUtils.setField(gameServer, "scheduledEndTurns", scheduled);
+
+        ReflectionTestUtils.invokeMethod(gameServer, "cancelScheduledEndTurn", "game-1");
+
+        verify(future).cancel(false);
+        assertFalse(scheduled.containsKey("game-1"));
+    }
+
+    @Test
+    void privateCancelScheduledEndTurnDoesNotCancelCompletedFuture() {
+        ScheduledFuture<?> future = mock(ScheduledFuture.class);
+        when(future.isDone()).thenReturn(true);
+        Map<String, ScheduledFuture<?>> scheduled = new ConcurrentHashMap<>();
+        scheduled.put("game-1", future);
+        ReflectionTestUtils.setField(gameServer, "scheduledEndTurns", scheduled);
+
+        ReflectionTestUtils.invokeMethod(gameServer, "cancelScheduledEndTurn", "game-1");
+
+        verify(future, never()).cancel(false);
+        assertFalse(scheduled.containsKey("game-1"));
+    }
+
 }
