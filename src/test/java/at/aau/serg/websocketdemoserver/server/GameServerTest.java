@@ -120,6 +120,11 @@ public class GameServerTest {
         when(lobbyManager.addPlayer("player1")).thenReturn(false);
         when(lobbyManager.getPlayers()).thenReturn(List.of());
 
+        Game mockGame = mock(Game.class);
+        when(mockGame.isRunning()).thenReturn(false);
+        when(lobbyManager.getGame()).thenReturn(mockGame);
+        when(lobbyManager.getAvailableCharacters()).thenReturn(List.of());
+
         JsonNode payload = mapper.readTree("{\"playerKey\": \"player1\"}");
         ObjectNode response = gameServer.joinLobby(payload);
 
