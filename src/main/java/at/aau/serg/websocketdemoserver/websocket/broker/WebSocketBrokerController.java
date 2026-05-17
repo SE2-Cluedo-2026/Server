@@ -11,20 +11,27 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Controller;
 import org.springframework.beans.factory.annotation.Autowired;
-
+import org.springframework.messaging.handler.annotation.Header;
+import at.aau.serg.websocketdemoserver.server.WebSocketEventListener;
 @Controller
 public class WebSocketBrokerController {
     @Autowired
     private GameServer gameServer;
 
+    @Autowired
+    private WebSocketEventListener eventListener; // ← NEU
+
+
     @MessageMapping("/lobby")
     @SendTo("/topic/lobby-response")
-    public ObjectNode routeLobbyMessage(LobbyMessage message) {
+    public ObjectNode routeLobbyMessage(LobbyMessage message, @Header("simpSessionId") String sessionId) {
         JsonNode payload = message.getPayload();
         System.out.println(message);
 
         switch (message.getType()) {
             case JOIN_LOBBY -> {
+                String playerKey = payload.get("playerKey").asText();
+                eventListener.registerSession(sessionId, playerKey);
                 return gameServer.joinLobby(payload);
             }
             case SET_CHARACTER_TYPE_AND_STATUS_READY -> {
