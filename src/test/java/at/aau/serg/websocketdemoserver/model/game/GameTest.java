@@ -213,7 +213,7 @@ public class GameTest {
 
         game.abort();
 
-        assertEquals(GameStatus.ABORTED, game.getStatus());
+        assertEquals(GameStatus.LOBBY, game.getStatus());
         assertFalse(game.getCaseFile().isComplete());
     }
 

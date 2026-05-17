@@ -607,12 +607,11 @@ public class GameServer {
                 );
 
                 if (game.allPlayersEliminated()) {
-                  dbService.updateGameStatus(game.getStatus().toString(), game.getCurrentPhase().toString());
-
                     response.put("type", GameMessageType.GAME_ABORTED.toString());
                     responsePayload.put("reason", "All players eliminated");
 
                     game.abort();
+                    dbService.updateGameStatus(game.getStatus().toString(), game.getCurrentPhase().toString());
                     addLobbyResetPayload(responsePayload, game);
 
                 } else {
