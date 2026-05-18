@@ -19,7 +19,7 @@ public class WebSocketBrokerController {
     private GameServer gameServer;
 
     @Autowired
-    private WebSocketEventListener eventListener; // ← NEU
+    private WebSocketEventListener eventListener;
 
 
     @MessageMapping("/lobby")
