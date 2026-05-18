@@ -123,5 +123,106 @@ class WebSocketEventListenerTest {
         assertSame(mockFuture, timers.get("player1"));
     }
 
+    @Test
+    void handleDisconnectTimerFiresAndAbortsWhenPlayerStillInactive() {
+        Player player1 = new Player("player1");
+        player1.setCharacter(CharacterType.MRS_PINK);
+        player1.setActive(true);
+        Player player2 = new Player("player2");
+        player2.setCharacter(CharacterType.DR_BLUE);
+        player2.setActive(true);
+
+        game.addPlayer(player1);
+        game.addPlayer(player2);
+        game.start();
+
+        listener.registerSession("sess1", "player1");
+
+        ScheduledExecutorService mockScheduler = mock(ScheduledExecutorService.class);
+        when(mockScheduler.schedule(any(Runnable.class), eq(30L), eq(TimeUnit.SECONDS)))
+                .thenAnswer(invocation -> {
+                    Runnable task = invocation.getArgument(0);
+                    task.run();
+                    return mock(ScheduledFuture.class);
+                });
+        ReflectionTestUtils.setField(listener, "scheduler", mockScheduler);
+
+        SessionDisconnectEvent event = createDisconnectEvent("sess1");
+        listener.handleDisconnect(event);
+
+        assertEquals(GameStatus.LOBBY, game.getStatus());
+        assertFalse(game.getPlayers().contains(player1));
+
+        verify(messagingTemplate, times(2))
+                .convertAndSend(eq("/topic/game-response"), any(ObjectNode.class));
+    }
+
+    @Test
+    void handleDisconnectTimerFiresPlayerAlreadyRejoined() {
+        Player player1 = new Player("player1");
+        player1.setCharacter(CharacterType.MRS_PINK);
+        player1.setActive(true);
+        Player player2 = new Player("player2");
+        player2.setCharacter(CharacterType.DR_BLUE);
+        player2.setActive(true);
+
+        game.addPlayer(player1);
+        game.addPlayer(player2);
+        game.start();
+
+        listener.registerSession("sess1", "player1");
+
+        ScheduledExecutorService mockScheduler = mock(ScheduledExecutorService.class);
+        when(mockScheduler.schedule(any(Runnable.class), eq(30L), eq(TimeUnit.SECONDS)))
+                .thenAnswer(invocation -> {
+                    Runnable task = invocation.getArgument(0);
+                    player1.setActive(true);
+                    task.run();
+                    return mock(ScheduledFuture.class);
+                });
+        ReflectionTestUtils.setField(listener, "scheduler", mockScheduler);
+
+        SessionDisconnectEvent event = createDisconnectEvent("sess1");
+        listener.handleDisconnect(event);
+
+        assertTrue(game.isRunning());
+
+        verify(messagingTemplate, times(1))
+                .convertAndSend(eq("/topic/game-response"), any(ObjectNode.class));
+    }
+
+    @Test
+    void handleDisconnectTimerFiresPlayerNotFoundInList() {
+        Player player1 = new Player("player1");
+        player1.setCharacter(CharacterType.MRS_PINK);
+        player1.setActive(true);
+        Player player2 = new Player("player2");
+        player2.setCharacter(CharacterType.DR_BLUE);
+        player2.setActive(true);
+
+        game.addPlayer(player1);
+        game.addPlayer(player2);
+        game.start();
+
+        listener.registerSession("sess1", "player1");
+
+        ScheduledExecutorService mockScheduler = mock(ScheduledExecutorService.class);
+        when(mockScheduler.schedule(any(Runnable.class), eq(30L), eq(TimeUnit.SECONDS)))
+                .thenAnswer(invocation -> {
+                    Runnable task = invocation.getArgument(0);
+                    game.getPlayers().remove(player1);
+                    task.run();
+                    return mock(ScheduledFuture.class);
+                });
+        ReflectionTestUtils.setField(listener, "scheduler", mockScheduler);
+
+        SessionDisconnectEvent event = createDisconnectEvent("sess1");
+        listener.handleDisconnect(event);
+
+        assertTrue(game.isRunning());
+
+        verify(messagingTemplate, times(1))
+                .convertAndSend(eq("/topic/game-response"), any(ObjectNode.class));
+    }
 
 }
