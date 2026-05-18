@@ -4,16 +4,16 @@ import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
 import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import static org.mockito.Mockito.*;
 
@@ -22,6 +22,9 @@ public class ServerStartupServiceTest {
 
     @Mock
     private DatabaseService dbService;
+
+    @Mock
+    private SimpMessagingTemplate messagingTemplate;
 
     @InjectMocks
     private ServerStartupService service;
@@ -43,44 +46,48 @@ public class ServerStartupServiceTest {
     @Test
     void run_statusRunning_missingPlayers_abortsGame() throws Exception {
         when(dbService.loadGameStatus()).thenReturn("RUNNING");
-        when(dbService.loadPlayerIds()).thenReturn(Set.of("p1", "p2", "p3"));
 
-        Player connectedPlayer = mock(Player.class);
-        when(connectedPlayer.getPlayerId()).thenReturn("p1");
+        Player active = mock(Player.class);
+        when(active.isActive()).thenReturn(true);
+        when(active.getPlayerId()).thenReturn("p1");
+
+        Player inactive = mock(Player.class);
+        when(inactive.isActive()).thenReturn(false);
+        when(inactive.getPlayerId()).thenReturn("p2");
 
         Game game = mock(Game.class);
         when(game.isRunning()).thenReturn(true);
-        when(game.getPlayers()).thenReturn(List.of(connectedPlayer));
-        lenient().when(game.getStatus()).thenReturn(GameStatus.ABORTED);
-        lenient().when(game.getCurrentPhase()).thenReturn(TurnPhase.TURN_ENDED);
+        when(game.getPlayers()).thenReturn(new ArrayList<>(List.of(active, inactive)));
+        lenient().when(game.getStatus()).thenReturn(GameStatus.LOBBY);
+        lenient().when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+        lenient().when(game.getAvailableCharacters()).thenReturn(List.of());
 
         try (MockedStatic<Game> gameMock = mockStatic(Game.class)) {
             gameMock.when(Game::getINSTANCE).thenReturn(game);
-            overrideDelayAndRun(game);
+            overrideDelayAndRun();
             verify(game).abort();
-            verify(dbService).updateGameStatus("ABORTED", "TURN_ENDED");
+            verify(dbService).removePlayer("p2");
+            verify(game).restorePlayers(anyList());
+            verify(messagingTemplate).convertAndSend(eq("/topic/game-response"), any(Object.class));
         }
     }
 
     @Test
     void run_statusRunning_allReconnected_continuesGame() throws Exception {
         when(dbService.loadGameStatus()).thenReturn("RUNNING");
-        when(dbService.loadPlayerIds()).thenReturn(Set.of("p1", "p2"));
 
         Player p1 = mock(Player.class);
-        when(p1.getPlayerId()).thenReturn("p1");
+        when(p1.isActive()).thenReturn(true);
         Player p2 = mock(Player.class);
-        when(p2.getPlayerId()).thenReturn("p2");
+        when(p2.isActive()).thenReturn(true);
 
         Game game = mock(Game.class);
         when(game.isRunning()).thenReturn(true);
-        when(game.getPlayers()).thenReturn(List.of(p1, p2));
+        when(game.getPlayers()).thenReturn(new ArrayList<>(List.of(p1, p2)));
 
         try (MockedStatic<Game> gameMock = mockStatic(Game.class)) {
             gameMock.when(Game::getINSTANCE).thenReturn(game);
-
-            overrideDelayAndRun(game);
-
+            overrideDelayAndRun();
             verify(game, never()).abort();
         }
     }
@@ -88,16 +95,13 @@ public class ServerStartupServiceTest {
     @Test
     void run_statusRunning_gameNotRunningAtTimerFire_doesNothing() throws Exception {
         when(dbService.loadGameStatus()).thenReturn("RUNNING");
-        when(dbService.loadPlayerIds()).thenReturn(Set.of("p1"));
 
         Game game = mock(Game.class);
         when(game.isRunning()).thenReturn(false);
 
         try (MockedStatic<Game> gameMock = mockStatic(Game.class)) {
             gameMock.when(Game::getINSTANCE).thenReturn(game);
-
-            overrideDelayAndRun(game);
-
+            overrideDelayAndRun();
             verify(game, never()).abort();
             verify(game, never()).getPlayers();
         }
@@ -127,11 +131,7 @@ public class ServerStartupServiceTest {
         }
     }
 
-    private void overrideDelayAndRun(Game game) throws Exception {
-        // We can't easily intercept Executors.newSingleThreadScheduledExecutor()
-        // in the production code without refactoring, so we use a
-        // MockedStatic<Executors> to supply a scheduler that runs immediately.
-
+    private void overrideDelayAndRun() throws Exception {
         try (MockedStatic<java.util.concurrent.Executors> execMock =
                      mockStatic(java.util.concurrent.Executors.class)) {
 
@@ -141,7 +141,6 @@ public class ServerStartupServiceTest {
             execMock.when(java.util.concurrent.Executors::newSingleThreadScheduledExecutor)
                     .thenReturn(scheduler);
 
-            // Capture the Runnable passed to schedule() and run it immediately
             when(scheduler.schedule(any(Runnable.class), eq(60L), eq(java.util.concurrent.TimeUnit.SECONDS)))
                     .thenAnswer(invocation -> {
                         Runnable task = invocation.getArgument(0);
