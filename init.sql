@@ -1,11 +1,11 @@
 CREATE TABLE IF NOT EXISTS game (
-                                    game_id         VARCHAR(50)  PRIMARY KEY,
+    game_id         VARCHAR(50)  PRIMARY KEY,
     status          VARCHAR(20)  NOT NULL,
     current_phase   VARCHAR(30)  NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS turn_manager (
-                                            game_id             VARCHAR(50)  PRIMARY KEY,
+    game_id             VARCHAR(50)  PRIMARY KEY,
     current_player_id   INT          NOT NULL,
     dice_value          INT          NOT NULL,
     phase               VARCHAR(30)  NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS turn_manager (
     );
 
 CREATE TABLE IF NOT EXISTS case_file (
-                                         game_id         VARCHAR(50)  PRIMARY KEY,
+    game_id         VARCHAR(50)  PRIMARY KEY,
     suspect_card_id VARCHAR(50)  NOT NULL,
     suspect_name    VARCHAR(100) NOT NULL,
     room_card_id    VARCHAR(50)  NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS case_file (
     );
 
 CREATE TABLE IF NOT EXISTS player (
-                                      player_id           VARCHAR(50)  PRIMARY KEY,
+    player_id           VARCHAR(50)  PRIMARY KEY,
     game_id             VARCHAR(50)  NOT NULL,
     character_type      VARCHAR(50),
     ready               BOOLEAN      NOT NULL DEFAULT FALSE,
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS player (
     );
 
 CREATE TABLE IF NOT EXISTS player_card (
-                                           player_id   VARCHAR(50)  NOT NULL,
+    player_id   VARCHAR(50)  NOT NULL,
     game_id     VARCHAR(50)  NOT NULL,
     card_id     VARCHAR(50)  NOT NULL,
     card_name   VARCHAR(100) NOT NULL,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS player_card (
     );
 
 CREATE TABLE IF NOT EXISTS seen_cards (
-                                          player_id   VARCHAR(50)  NOT NULL,
+    player_id   VARCHAR(50)  NOT NULL,
     game_id     VARCHAR(50)  NOT NULL,
     card_id     VARCHAR(50)  NOT NULL,
     card_name   VARCHAR(100) NOT NULL,
