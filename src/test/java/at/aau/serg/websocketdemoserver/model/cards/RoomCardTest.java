@@ -31,4 +31,39 @@ public class RoomCardTest {
             assertEquals(roomType, roomCard.getRoom());
         }
     }
+
+    @Test
+    public void TestEqualsSameId() {
+        RoomCard card1 = new RoomCard("1", "Kitchen", RoomType.KITCHEN);
+        RoomCard card2 = new RoomCard("1", "Kitchen Copy", RoomType.KITCHEN);
+
+        assertEquals(card1, card2);
+    }
+
+    @Test
+    public void TestEqualsDifferentId() {
+        RoomCard card1 = new RoomCard("1", "Kitchen", RoomType.KITCHEN);
+        RoomCard card2 = new RoomCard("2", "Kitchen", RoomType.KITCHEN);
+
+        assertNotEquals(card1, card2);
+    }
+
+    @Test
+    public void TestHashCodeSameId() {
+        RoomCard card1 = new RoomCard("1", "Kitchen", RoomType.KITCHEN);
+        RoomCard card2 = new RoomCard("1", "Kitchen Copy", RoomType.KITCHEN);
+
+        assertEquals(card1.hashCode(), card2.hashCode());
+    }
+
+    @Test
+    public void TestToString() {
+        RoomCard card = new RoomCard("1", "Kitchen", RoomType.KITCHEN);
+
+        String result = card.toString();
+
+        assertTrue(result.contains("1"));
+        assertTrue(result.contains("Kitchen"));
+    }
+
 }

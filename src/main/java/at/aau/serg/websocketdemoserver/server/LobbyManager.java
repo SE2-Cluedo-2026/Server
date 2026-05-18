@@ -1,25 +1,72 @@
 package at.aau.serg.websocketdemoserver.server;
 
+import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
+import at.aau.serg.websocketdemoserver.model.game.Game;
+import at.aau.serg.websocketdemoserver.model.game.Player;
+import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 public class LobbyManager {
-    private final Map<String, String> players = new HashMap<>();
+    private final Game game = Game.getINSTANCE();
 
-    public void addPlayer(String playerName, String characterType) {
-        players.put(playerName, characterType);
+    public boolean leaveLobby(String playerId) {
+        return game.leaveLobby(playerId);
     }
 
-    public Map<String, String> getPlayers() {
-        return players;
+    public Game getGame() {
+        return game;
     }
-    public void joinLobby() {
-        //TODO:
-    }
-    public void setReady(){
-        //TODO:
-    }
-    public boolean canStartGame() {
-        //TODO:
+
+    public boolean addPlayer(String playerKey) {
+        if (game.getStatus() == GameStatus.RUNNING) {
+            return false;
+        }
+        if (game.getStatus() != GameStatus.LOBBY) {
+            return false;
+        }
+        if (!game.playerAlreadyJoined(playerKey)) {
+            Player player = new Player(playerKey);
+            game.addPlayer(player);
+            return true;
+        }
         return false;
+    }
+
+    public List<CharacterType> getAvailableCharacters() {
+        return game.getAvailableCharacters();
+    }
+
+    public boolean isGameFull() {
+        return game.isGameFull();
+    }
+
+    public List<Player> getPlayers() {
+        return game.getPlayers();
+    }
+
+    public void joinLobby() {
+    }
+
+    public boolean setCharacterTypeAndStatusReady(String playerId, CharacterType characterType) {
+        for (Player player : game.getPlayers()) {
+            if (player.getPlayerId().equals(playerId)) {
+                player.setCharacter(characterType);
+                player.markReady();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean canStartGame() {
+        return game.getStatus() == GameStatus.LOBBY
+                && game.getPlayers().size() >= 2
+                && game.getPlayers().size() <= 4
+                && game.getPlayers().stream().allMatch(Player::isReady);
+    }
+    public boolean isPlayerInGame(String playerId) {
+        return game.getPlayers().stream()
+                .anyMatch(p -> p.getPlayerId().equals(playerId));
     }
 }

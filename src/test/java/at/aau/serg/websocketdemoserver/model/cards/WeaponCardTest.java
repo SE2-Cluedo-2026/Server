@@ -31,4 +31,38 @@ public class WeaponCardTest {
             assertEquals(weaponType, weaponCard.getWeapon());
         }
     }
+
+    @Test
+    public void TestEqualsSameId() {
+        WeaponCard card1 = new WeaponCard("1", "Knife", WeaponType.KNIFE);
+        WeaponCard card2 = new WeaponCard("1", "Knife Copy", WeaponType.KNIFE);
+
+        assertEquals(card1, card2);
+    }
+
+    @Test
+    public void TestEqualsDifferentId() {
+        WeaponCard card1 = new WeaponCard("1", "Knife", WeaponType.KNIFE);
+        WeaponCard card2 = new WeaponCard("2", "Knife", WeaponType.KNIFE);
+
+        assertNotEquals(card1, card2);
+    }
+
+    @Test
+    public void TestHashCodeSameId() {
+        WeaponCard card1 = new WeaponCard("1", "Knife", WeaponType.KNIFE);
+        WeaponCard card2 = new WeaponCard("1", "Knife Copy", WeaponType.KNIFE);
+
+        assertEquals(card1.hashCode(), card2.hashCode());
+    }
+
+    @Test
+    public void TestToString() {
+        WeaponCard card = new WeaponCard("1", "Knife", WeaponType.KNIFE);
+
+        String result = card.toString();
+
+        assertTrue(result.contains("1"));
+        assertTrue(result.contains("Knife"));
+    }
 }

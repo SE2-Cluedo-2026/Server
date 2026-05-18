@@ -1,141 +1,143 @@
 package at.aau.serg.websocketdemoserver.model.game;
 
-import at.aau.serg.websocketdemoserver.model.board.Board;
+import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
 import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
-import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import java.util.ArrayList;
+
 import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 public class GameTest {
 
-    @Test
-    public void TestConstructor() {
-        List<Player> players = new ArrayList<>();
-        Board board = mock(Board.class);
-        CaseFile caseFile = mock(CaseFile.class);
-        TurnManager turnManager = mock(TurnManager.class);
+    private Game game;
 
-        Game game = new Game(
-                "game1",
-                GameStatus.LOBBY,
-                TurnPhase.WAITING_FOR_ROLL,
-                players,
-                board,
-                caseFile,
-                turnManager
-        );
-
-        assertEquals("game1", game.getGameId());
-        assertEquals(GameStatus.LOBBY, game.getStatus());
-        assertEquals(TurnPhase.WAITING_FOR_ROLL, game.getCurrentPhase());
-        assertEquals(players, game.getPlayers());
-        assertEquals(board, game.getBoard());
-        assertEquals(caseFile, game.getCaseFile());
-        assertEquals(turnManager, game.getTurnManager());
+    @BeforeEach
+    public void setUp() {
+        game = Game.getINSTANCE();
+        game.reset();
     }
 
     @Test
-    public void TestStart() {
-        Game game = new Game(
-                "game1",
-                GameStatus.LOBBY,
-                TurnPhase.WAITING_FOR_ROLL,
-                new ArrayList<>(),
-                mock(Board.class),
-                mock(CaseFile.class),
-                mock(TurnManager.class)
-        );
+    public void TestConstructorDefaultValues() {
+        assertEquals(GameStatus.LOBBY, game.getStatus());
+        assertEquals(TurnPhase.WAITING_FOR_ROLL, game.getCurrentPhase());
+        assertNotNull(game.getPlayers());
+        assertNotNull(game.getBoard());
+        assertNotNull(game.getTurnManager());
+        assertNull(game.getCaseFile());
+    }
 
+    @Test
+    public void TestAddPlayer() {
+        Player player = createPlayer("1", CharacterType.MRS_PINK);
+
+        game.addPlayer(player);
+
+        assertEquals(1, game.getPlayers().size());
+        assertTrue(game.getPlayers().contains(player));
+    }
+
+    @Test
+    public void TestPlayerAlreadyJoined_returnTrue() {
+        Player player = createPlayer("1", CharacterType.MRS_PINK);
+        game.addPlayer(player);
+
+        assertTrue(game.playerAlreadyJoined("1"));
+    }
+
+    @Test
+    public void TestPlayerAlreadyJoined_returnFalse() {
+        assertFalse(game.playerAlreadyJoined("unknown"));
+    }
+
+    @Test
+    public void TestPlayerAlreadyJoined_differentId_returnFalse() {
+        game.addPlayer(createPlayer("1", CharacterType.MRS_PINK));
+
+        assertFalse(game.playerAlreadyJoined("2"));
+    }
+
+    @Test
+    public void TestLeaveLobby_removePlayer() {
+        Player player = createPlayer("1", CharacterType.MRS_PINK);
+        game.addPlayer(player);
+
+        boolean removed = game.leaveLobby("1");
+
+        assertTrue(removed);
+        assertTrue(game.getPlayers().isEmpty());
+    }
+
+    @Test
+    public void TestLeaveLobby_unknownPlayer_returnFalse() {
+        boolean removed = game.leaveLobby("unknown");
+
+        assertFalse(removed);
+    }
+
+    @Test
+    public void TestLeaveLobby_playerExists_differentId_returnFalse() {
+        game.addPlayer(createPlayer("1", CharacterType.MRS_PINK));
+
+        boolean removed = game.leaveLobby("2");
+
+        assertFalse(removed);
+        assertEquals(1, game.getPlayers().size());
+    }
+
+    @Test
+    public void TestIsGameFull_returnFalse() {
+        game.addPlayer(createPlayer("1", CharacterType.MRS_PINK));
+        game.addPlayer(createPlayer("2", CharacterType.DR_BLUE));
+
+        assertFalse(game.isGameFull());
+    }
+
+    @Test
+    public void TestIsGameFull_returnTrue() {
+        game.addPlayer(createPlayer("1", CharacterType.MRS_PINK));
+        game.addPlayer(createPlayer("2", CharacterType.DR_BLUE));
+        game.addPlayer(createPlayer("3", CharacterType.MRS_LAVENDER));
+        game.addPlayer(createPlayer("4", CharacterType.DR_RED));
+
+        assertTrue(game.isGameFull());
+    }
+
+    @Test
+    public void TestStartCreatesCompleteCaseFile() {
+        addFourPlayers();
         game.start();
-        assertTrue(true);
+
+        assertEquals(GameStatus.RUNNING, game.getStatus());
+        assertEquals(TurnPhase.WAITING_FOR_ROLL, game.getCurrentPhase());
+        assertNotNull(game.getCaseFile());
+        assertTrue(game.getCaseFile().isComplete());
     }
 
     @Test
     public void TestMakeSuggestion() {
-        Game game = new Game(
-                "game1",
-                GameStatus.LOBBY,
-                TurnPhase.WAITING_FOR_ROLL,
-                new ArrayList<>(),
-                mock(Board.class),
-                mock(CaseFile.class),
-                mock(TurnManager.class)
-        );
-
-        game.makeSuggestion();
-        assertTrue(true);
+        assertDoesNotThrow(() -> game.makeSuggestion());
     }
 
     @Test
     public void TestMakeAccusation() {
-        Game game = new Game(
-                "game1",
-                GameStatus.LOBBY,
-                TurnPhase.WAITING_FOR_ROLL,
-                new ArrayList<>(),
-                mock(Board.class),
-                mock(CaseFile.class),
-                mock(TurnManager.class)
-        );
-
-        game.makeAccusation();
-        assertTrue(true);
+        assertDoesNotThrow(() -> game.makeAccusation());
     }
 
     @Test
     public void TestEndTurn() {
-        Game game = new Game(
-                "game1",
-                GameStatus.LOBBY,
-                TurnPhase.WAITING_FOR_ROLL,
-                new ArrayList<>(),
-                mock(Board.class),
-                mock(CaseFile.class),
-                mock(TurnManager.class)
-        );
+        addFourPlayers();
+        game.start();
 
-        game.endTurn();
-        assertTrue(true);
+        assertDoesNotThrow(() -> game.endTurn());
     }
     @Test
     public void TestGetAvailableCharacters() {
-        List<Player> players = new ArrayList<>();
-        players.add(new Player(
-                "1",
-                "Lena",
-                CharacterType.MRS_PINK,
-                false,
-                true,
-                false,
-                false,
-                false,
-                new ArrayList<>()
-        ));
-        players.add(new Player(
-                "2",
-                "Ben",
-                CharacterType.DR_BLUE,
-                false,
-                true,
-                false,
-                false,
-                false,
-                new ArrayList<>()
-        ));
-
-        Game game = new Game(
-                "game1",
-                GameStatus.LOBBY,
-                TurnPhase.WAITING_FOR_ROLL,
-                players,
-                mock(Board.class),
-                mock(CaseFile.class),
-                mock(TurnManager.class)
-        );
+        game.addPlayer(createPlayer("1", CharacterType.MRS_PINK));
+        game.addPlayer(createPlayer("2", CharacterType.DR_BLUE));
 
         List<CharacterType> availableCharacters = game.getAvailableCharacters();
 
@@ -146,5 +148,99 @@ public class GameTest {
         assertTrue(availableCharacters.contains(CharacterType.DR_RED));
 
         assertEquals(2, availableCharacters.size());
+    }
+
+    @Test
+    public void TestGetAvailableCharacters_withNullCharacter() {
+        Player player = new Player("1");
+        game.addPlayer(player);
+
+        List<CharacterType> availableCharacters = game.getAvailableCharacters();
+
+        assertEquals(CharacterType.values().length, availableCharacters.size());
+    }
+
+    private Player createPlayer(String id, CharacterType characterType) {
+        Player player = new Player(id);
+        player.setCharacter(characterType);
+        return player;
+    }
+    private void addFourPlayers() {
+        game.addPlayer(createPlayer("1", CharacterType.MRS_PINK));
+        game.addPlayer(createPlayer("2", CharacterType.DR_BLUE));
+        game.addPlayer(createPlayer("3", CharacterType.MRS_LAVENDER));
+        game.addPlayer(createPlayer("4", CharacterType.DR_RED));
+    }
+
+    @Test
+    public void TestStartCreatesCaseFile() {
+        addFourPlayers();
+        game.start();
+
+        assertNotNull(game.getCaseFile());
+    }
+
+    @Test
+    public void testStartCreatesCompleteCaseFile() {
+        addFourPlayers();
+        game.start();
+
+        assertEquals(GameStatus.RUNNING, game.getStatus());
+        assertEquals(TurnPhase.WAITING_FOR_ROLL, game.getCurrentPhase());
+        assertNotNull(game.getCaseFile());
+        assertTrue(game.getCaseFile().isComplete());
+    }
+
+    @Test
+    public void testFinishClearsCaseFile() {
+        addFourPlayers();
+        game.start();
+
+        assertNotNull(game.getCaseFile());
+
+        game.finish();
+
+        assertEquals(GameStatus.FINISHED, game.getStatus());
+        assertFalse(game.getCaseFile().isComplete());
+    }
+
+    @Test
+    public void testAbortClearsCaseFile() {
+        addFourPlayers();
+        game.start();
+
+        assertNotNull(game.getCaseFile());
+
+        game.abort();
+
+        assertEquals(GameStatus.LOBBY, game.getStatus());
+        assertNull(game.getCaseFile());
+    }
+
+    @Test
+    public void TestStartDealsCardsToPlayers() {
+        Player playerOne = createPlayer("1", CharacterType.MRS_PINK);
+        Player playerTwo = createPlayer("2", CharacterType.DR_BLUE);
+        Player playerThree = createPlayer("3", CharacterType.MRS_LAVENDER);
+        Player playerFour = createPlayer("4", CharacterType.DR_RED);
+
+        game.addPlayer(playerOne);
+        game.addPlayer(playerTwo);
+        game.addPlayer(playerThree);
+        game.addPlayer(playerFour);
+
+        game.start();
+
+        assertNotNull(playerOne.getCards());
+        assertNotNull(playerTwo.getCards());
+        assertNotNull(playerThree.getCards());
+        assertNotNull(playerFour.getCards());
+
+        int totalCards = playerOne.getCards().size()
+        + playerTwo.getCards().size()
+                + playerThree.getCards().size()
+                + playerFour.getCards().size();
+
+        assertEquals(12, totalCards);
     }
 }

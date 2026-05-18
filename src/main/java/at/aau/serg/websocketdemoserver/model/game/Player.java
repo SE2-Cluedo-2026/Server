@@ -1,80 +1,61 @@
 package at.aau.serg.websocketdemoserver.model.game;
 
+import at.aau.serg.websocketdemoserver.model.board.Position;
 import at.aau.serg.websocketdemoserver.model.cards.Card;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
+import lombok.*;
 
 import java.util.List;
 
 public class Player {
-    private String playerId;
-    private String name;
+    @Getter
+    private final String playerId;
+    @Getter
     private CharacterType character;
+    @Getter
+    @Setter
     private boolean ready;
+    @Getter
+    @Setter
     private boolean active;
+    @Getter
+    @Setter
     private boolean eliminated;
+    @Getter
+    @Setter
     private boolean cheatUsed;
+    @Getter
+    @Setter
     private boolean accusationUsed;
+    @Getter
+    @Setter
     private List<Card> cards;
+    @Getter
+    @Setter
+    private Position currentPosition;
 
-    public Player(String playerId, String name, CharacterType character, boolean ready,
-                  boolean active, boolean eliminated, boolean cheatUsed,
-                  boolean accusationUsed, List<Card> cards) {
+    public Player(String playerId) {
         this.playerId = playerId;
-        this.name = name;
-        this.character = character;
-        this.ready = ready;
-        this.active = active;
-        this.eliminated = eliminated;
-        this.cheatUsed = cheatUsed;
-        this.accusationUsed = accusationUsed;
-        this.cards = cards;
+        this.ready = false;
+        this.active = true;
+        this.eliminated = false;
+        this.cheatUsed = false;
+        this.accusationUsed = false;
     }
-
+    public void setCharacter(CharacterType character) {
+        this.character = character;
+    }
     public void markReady() {
-        // TODO
+        this.ready = true;
     }
 
     public void useCheat() {
         // TODO
+        this.cheatUsed = true;
     }
 
     public void eliminate() {
         // TODO
-    }
-
-    public String getPlayerId() {
-        return playerId;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public CharacterType getCharacter() {
-        return character;
-    }
-
-    public boolean isReady() {
-        return ready;
-    }
-
-    public boolean isActive() {
-        return active;
-    }
-
-    public boolean isEliminated() {
-        return eliminated;
-    }
-
-    public boolean isCheatUsed() {
-        return cheatUsed;
-    }
-
-    public boolean isAccusationUsed() {
-        return accusationUsed;
-    }
-
-    public List<Card> getCards() {
-        return cards;
+        this.eliminated = true;
     }
 }
