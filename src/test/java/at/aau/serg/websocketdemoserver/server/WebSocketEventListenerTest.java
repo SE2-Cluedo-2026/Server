@@ -224,5 +224,79 @@ class WebSocketEventListenerTest {
         verify(messagingTemplate, times(1))
                 .convertAndSend(eq("/topic/game-response"), any(ObjectNode.class));
     }
+    @Test
+    void onPlayerRejoinedSetsActiveAndCancelsTimer() {
+        Player player1 = new Player("player1");
+        player1.setActive(false);
+        game.addPlayer(player1);
+
+        ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
+        getDisconnectTimers().put("player1", mockFuture);
+
+        listener.onPlayerRejoined("player1");
+
+        assertTrue(player1.isActive());
+        verify(mockFuture).cancel(false);
+        assertFalse(getDisconnectTimers().containsKey("player1"));
+
+        verify(messagingTemplate).convertAndSend(eq("/topic/game-response"), any(ObjectNode.class));
+    }
+
+    @Test
+    void onPlayerRejoinedNoTimerDoesNotThrow() {
+        Player player1 = new Player("player1");
+        player1.setActive(false);
+        game.addPlayer(player1);
+
+        listener.onPlayerRejoined("player1");
+
+        assertTrue(player1.isActive());
+        verify(messagingTemplate).convertAndSend(eq("/topic/game-response"), any(ObjectNode.class));
+    }
+
+    @Test
+    void onPlayerRejoinedPlayerNotInGameStillSendsContinue() {
+        listener.onPlayerRejoined("nonexistent");
+
+        verify(messagingTemplate).convertAndSend(eq("/topic/game-response"), any(ObjectNode.class));
+    }
+
+    @Test
+    void removePlayerCleansUpMaps() {
+        listener.registerSession("sess1", "player1");
+        getDisconnectTimers().put("player1", mock(ScheduledFuture.class));
+
+        listener.removePlayer("player1");
+
+        assertNull(getPlayerToCurrentSession().get("player1"));
+        assertFalse(getDisconnectTimers().containsKey("player1"));
+    }
+
+    @Test
+    void removePlayerNonexistentDoesNotThrow() {
+        assertDoesNotThrow(() -> listener.removePlayer("unknown"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, String> getSessionToPlayer() {
+        return (Map<String, String>) ReflectionTestUtils.getField(listener, "sessionToPlayer");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, String> getPlayerToCurrentSession() {
+        return (Map<String, String>) ReflectionTestUtils.getField(listener, "playerToCurrentSession");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, ScheduledFuture<?>> getDisconnectTimers() {
+        return (Map<String, ScheduledFuture<?>>) ReflectionTestUtils.getField(listener, "disconnectTimers");
+    }
+
+    private SessionDisconnectEvent createDisconnectEvent(String sessionId) {
+        Map<String, Object> headers = new java.util.HashMap<>();
+        headers.put("simpSessionId", sessionId);
+        Message<byte[]> message = new GenericMessage<>(new byte[0], new MessageHeaders(headers));
+        return new SessionDisconnectEvent(this, message, sessionId, null);
+    }
 
 }
