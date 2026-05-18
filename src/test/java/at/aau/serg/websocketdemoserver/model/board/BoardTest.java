@@ -22,8 +22,7 @@ public class BoardTest {
 
     @Test
     public void TestIsMoveValid() {
-        // TODO: New testing after implemented logic
-        assertFalse(board.isMoveValid());
+        assertTrue(board.isMoveValid());
     }
 
     @Test

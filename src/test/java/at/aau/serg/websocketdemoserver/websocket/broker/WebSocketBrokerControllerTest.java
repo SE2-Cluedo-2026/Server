@@ -2,6 +2,7 @@ package at.aau.serg.websocketdemoserver.websocket.broker;
 
 import at.aau.serg.websocketdemoserver.messaging.dtos.*;
 import at.aau.serg.websocketdemoserver.server.GameServer;
+import at.aau.serg.websocketdemoserver.server.WebSocketEventListener;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,11 +24,16 @@ public class WebSocketBrokerControllerTest {
     @InjectMocks
     private WebSocketBrokerController controller;
 
+    @Mock
+    private WebSocketEventListener eventListener;
+
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
     public void testRouteLobbyMessage_JoinLobby() {
-        JsonNode payload = mapper.createObjectNode();
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("playerKey", "testKey");
+
         ObjectNode expected = mapper.createObjectNode();
         when(gameServer.joinLobby(payload)).thenReturn(expected);
 
@@ -35,7 +41,7 @@ public class WebSocketBrokerControllerTest {
         when(message.getType()).thenReturn(LobbyMessageType.JOIN_LOBBY);
         when(message.getPayload()).thenReturn(payload);
 
-        assertEquals(expected, controller.routeLobbyMessage(message));
+        assertEquals(expected, controller.routeLobbyMessage(message, "test-session-id"));
     }
 
     @Test
@@ -45,10 +51,11 @@ public class WebSocketBrokerControllerTest {
         when(gameServer.leaveLobby(payload)).thenReturn(expected);
 
         LobbyMessage message = mock(LobbyMessage.class);
+        expected.put("playerKey", "testKey");
         when(message.getType()).thenReturn(LobbyMessageType.LEAVE_LOBBY);
         when(message.getPayload()).thenReturn(payload);
 
-        assertEquals(expected, controller.routeLobbyMessage(message));
+        assertEquals(expected, controller.routeLobbyMessage(message, "test-session-id"));
     }
 
     @Test
@@ -57,7 +64,7 @@ public class WebSocketBrokerControllerTest {
         when(message.getType()).thenReturn(LobbyMessageType.SET_CHARACTER_TYPE_AND_STATUS_READY);
         when(message.getPayload()).thenReturn(mapper.createObjectNode());
 
-        assertNull(controller.routeLobbyMessage(message));
+        assertNull(controller.routeLobbyMessage(message, "test-session-id"));
     }
 
     @Test

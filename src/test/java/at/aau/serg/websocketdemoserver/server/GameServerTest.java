@@ -76,6 +76,8 @@ class GameServerTest {
 
     @Test
     void joinLobbyReturnsGameFullWhenLobbyIsFull() throws Exception {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
         when(lobbyManager.isGameFull()).thenReturn(true);
 
         ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"player1\"}"));
@@ -88,6 +90,8 @@ class GameServerTest {
 
     @Test
     void joinLobbyReturnsNewPlayerWithAvailableCharactersAndExistingPlayers() throws Exception {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
         Player existing = new Player("player0");
         existing.setCharacter(CharacterType.MRS_PINK);
         existing.markReady();
@@ -130,6 +134,8 @@ class GameServerTest {
 
     @Test
     void joinLobbyExistingPlayerWithoutCharacterDoesNotContainCharacterType() throws Exception {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
         Player existing = new Player("player0");
 
         when(lobbyManager.isGameFull()).thenReturn(false);
@@ -826,6 +832,8 @@ class GameServerTest {
     void joinLobbyRejoinedRunningReturnsCompleteStateWithCardsPositionsAndEliminations() throws Exception {
         Game game = mock(Game.class);
         TurnManager turnManager = mock(TurnManager.class);
+        WebSocketEventListener eventListener = mock(WebSocketEventListener.class);
+        ReflectionTestUtils.setField(gameServer, "eventListener", eventListener);
 
         Player rejoined = new Player("player1");
         rejoined.setCharacter(CharacterType.MRS_PINK);
@@ -839,69 +847,63 @@ class GameServerTest {
         eliminated.setCurrentPosition(boardPos);
 
         Player roomPlayer = new Player("player3");
+        roomPlayer.setCharacter(CharacterType.DR_RED);
         Position roomPos = new Position();
         roomPos.setRoomType(RoomType.KITCHEN);
         roomPlayer.setCurrentPosition(roomPos);
 
-        when(lobbyManager.isGameFull()).thenReturn(false);
-        when(lobbyManager.addPlayer("player1")).thenReturn(false);
-        when(lobbyManager.getAvailableCharacters()).thenReturn(List.of(CharacterType.DR_RED));
-        when(lobbyManager.getPlayers()).thenReturn(List.of(rejoined, eliminated));
         when(lobbyManager.getGame()).thenReturn(game);
         when(game.isRunning()).thenReturn(true);
-        when(game.getGameId()).thenReturn("game-1");
-        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
-        when(game.getPlayers()).thenReturn(List.of(rejoined, eliminated, roomPlayer));
+        when(lobbyManager.isPlayerInGame("player1")).thenReturn(true);
         when(game.getTurnManager()).thenReturn(turnManager);
-        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_MOVE);
-        when(turnManager.getCurrentPlayerId(game.getPlayers())).thenReturn("player1");
         when(turnManager.getCurrentPlayerId()).thenReturn(0);
-        when(turnManager.getDiceValue()).thenReturn(6);
-        when(turnManager.getMovesRemaining()).thenReturn(4);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_MOVE);
+        when(game.getPlayers()).thenReturn(List.of(rejoined, eliminated, roomPlayer));
 
         ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"player1\"}"));
 
-        assertEquals(LobbyMessageType.PLAYER_REJOINED_RUNNING.toString(), response.get("type").asText());
+        assertEquals(LobbyMessageType.PLAYER_REJOINED.toString(), response.get("type").asText());
         JsonNode payload = response.get("payload");
-        assertEquals("game-1", payload.get("gameId").asText());
-        assertEquals("MRS_PINK", payload.get("myCharacter").asText());
+        assertEquals("player1", payload.get("playerId").asText());
+        assertEquals("RUNNING", payload.get("gameStatus").asText());
+        assertEquals("WAITING_FOR_MOVE", payload.get("currentPhase").asText());
+        assertEquals("MRS_PINK", payload.get("characterType").asText());
         assertEquals("s1", payload.get("myCards").get(0).get("cardId").asText());
-        assertFalse(payload.get("isEliminated").asBoolean());
-        assertEquals("2,3", payload.get("playerPositions").get("player2").asText());
-        assertEquals("KITCHEN", payload.get("playerPositions").get("player3").asText());
-        assertEquals("DR_BLUE", payload.get("playerCharacterMap").get("player2").asText());
-        assertEquals("player2", payload.get("eliminatedPlayers").get(0).asText());
-        assertEquals("player1", payload.get("currentPlayerId").asText());
-        assertEquals(6, payload.get("diceValue").asInt());
-        assertEquals(4, payload.get("remainingMoves").asInt());
+
+        JsonNode players = payload.get("players");
+        assertEquals(3, players.size());
+        assertEquals("player2", players.get(1).get("playerId").asText());
+        assertTrue(players.get(1).get("eliminated").asBoolean());
+        assertEquals("DR_BLUE", players.get(1).get("characterType").asText());
+        assertEquals("player3", players.get(2).get("playerId").asText());
+
+        verify(eventListener).onPlayerRejoined("player1");
     }
 
     @Test
     void joinLobbyRejoinedRunningWithoutMatchingPlayerStillReturnsEmptyOptionalFields() throws Exception {
         Game game = mock(Game.class);
         TurnManager turnManager = mock(TurnManager.class);
+        WebSocketEventListener eventListener = mock(WebSocketEventListener.class);
+        ReflectionTestUtils.setField(gameServer, "eventListener", eventListener);
 
-        when(lobbyManager.isGameFull()).thenReturn(false);
-        when(lobbyManager.addPlayer("ghost")).thenReturn(false);
-        when(lobbyManager.getAvailableCharacters()).thenReturn(List.of());
-        when(lobbyManager.getPlayers()).thenReturn(List.of(new Player("other")));
         when(lobbyManager.getGame()).thenReturn(game);
         when(game.isRunning()).thenReturn(true);
-        when(game.getGameId()).thenReturn("game-1");
-        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
-        when(game.getPlayers()).thenReturn(List.of());
+        when(lobbyManager.isPlayerInGame("ghost")).thenReturn(true);
         when(game.getTurnManager()).thenReturn(turnManager);
+        when(turnManager.getCurrentPlayerId()).thenReturn(0);
         when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
-        when(turnManager.getCurrentPlayerId(game.getPlayers())).thenReturn("");
+        when(game.getPlayers()).thenReturn(List.of());
 
         ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"ghost\"}"));
 
-        assertEquals(LobbyMessageType.PLAYER_REJOINED_RUNNING.toString(), response.get("type").asText());
-        assertFalse(response.get("payload").has("myCharacter"));
-        assertEquals(0, response.get("payload").get("myCards").size());
-        assertFalse(response.get("payload").get("isEliminated").asBoolean());
-    }
+        assertEquals(LobbyMessageType.PLAYER_REJOINED.toString(), response.get("type").asText());
+        assertEquals("RUNNING", response.get("payload").get("gameStatus").asText());
+        assertFalse(response.get("payload").has("myCards"));
+        assertFalse(response.get("payload").has("characterType"));
 
+        verify(eventListener).onPlayerRejoined("ghost");
+    }
     @Test
     void rejoinedLobbyPlayerWithCharacterDoesNotReceiveAvailableCharactersAgain() throws Exception {
         Player rejoined = new Player("player1");

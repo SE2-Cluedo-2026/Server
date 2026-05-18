@@ -14,7 +14,7 @@ public class LobbyManagerTest {
     @BeforeEach
     public void setUp() {
         lobbyManager = new LobbyManager();
-        Game.getINSTANCE().getPlayers().clear();
+        Game.getINSTANCE().resetGame();
     }
 
     @Test
