@@ -121,8 +121,6 @@ public class DatabaseService {
     }
   }
 
-  // ===================== GRANULARE UPDATES =====================
-
   public void updatePlayerPosition(String playerId, Position position) {
     if (position == null) {
       jdbc.update(
@@ -181,8 +179,6 @@ public class DatabaseService {
     }
   }
 
-  // ===================== SEEN CARDS =====================
-
   public void saveSeenCards(String playerId, List<Card> cards) {
     if (cards == null) {
       return;
@@ -203,15 +199,11 @@ public class DatabaseService {
     }
   }
 
-  // ===================== REMOVE PLAYER =====================
-
   public void removePlayer(String playerId) {
     jdbc.update("DELETE FROM player_card WHERE player_id = ?", playerId);
     jdbc.update("DELETE FROM seen_cards WHERE player_id = ?", playerId);
     jdbc.update("DELETE FROM player WHERE player_id = ?", playerId);
   }
-
-  // ===================== LOAD METHODS (Server-Startup) =====================
 
   public Set<String> loadPlayerIds() {
     List<Map<String, Object>> rows = jdbc.queryForList(
@@ -237,14 +229,12 @@ public class DatabaseService {
     Game game = Game.getINSTANCE();
     TurnManager tm = TurnManager.getINSTANCE();
 
-    // Load game state
     Map<String, Object> gameRow = jdbc.queryForMap(
             "SELECT status, current_phase FROM game WHERE game_id = ?", GAME_ID
     );
     GameStatus status = GameStatus.valueOf((String) gameRow.get("status"));
     TurnPhase currentPhase = TurnPhase.valueOf((String) gameRow.get("current_phase"));
 
-    // Load turn manager
     Map<String, Object> tmRow = jdbc.queryForMap(
             "SELECT current_player_id, dice_value, phase FROM turn_manager WHERE game_id = ?", GAME_ID
     );
@@ -253,7 +243,6 @@ public class DatabaseService {
     TurnPhase tmPhase = TurnPhase.valueOf((String) tmRow.get("phase"));
     tm.restoreState(currentPlayerIndex, diceValue, tmPhase);
 
-    // Load case file
     Map<String, Object> cfRow = jdbc.queryForMap(
             "SELECT suspect_card_id, suspect_name, room_card_id, room_name, weapon_card_id, weapon_name FROM case_file WHERE game_id = ?",
             GAME_ID
@@ -275,7 +264,6 @@ public class DatabaseService {
     );
     CaseFile caseFile = new CaseFile(suspectCard, roomCard, weaponCard);
 
-    // Load players
     List<Map<String, Object>> playerRows = jdbc.queryForList(
             "SELECT player_id, character_type, ready, active, eliminated, cheat_used, accusation_used, " +
                     "position_type, position_x, position_y, position_room FROM player WHERE game_id = ?",
@@ -294,10 +282,8 @@ public class DatabaseService {
       p.setCheatUsed((Boolean) row.get("cheat_used"));
       p.setAccusationUsed((Boolean) row.get("accusation_used"));
 
-      // After a server restart no player is actually connected yet
       p.setActive(false);
 
-      // Restore position
       String posType = (String) row.get("position_type");
       if (posType != null) {
         Position pos = new Position();
@@ -312,7 +298,6 @@ public class DatabaseService {
         p.setCurrentPosition(pos);
       }
 
-      // Load player cards
       List<Map<String, Object>> cardRows = jdbc.queryForList(
               "SELECT card_id, card_name, card_type FROM player_card WHERE player_id = ? AND game_id = ?",
               p.getPlayerId(), GAME_ID
@@ -332,7 +317,6 @@ public class DatabaseService {
       players.add(p);
     }
 
-    // Restore game singleton
     game.restoreState(status, currentPhase, players, caseFile);
   }
 

@@ -41,15 +41,12 @@ public class ServerStartupService implements CommandLineRunner {
             if ("RUNNING".equals(status)) {
                 System.out.println("[ServerStartup] RUNNING game found in DB – restoring state...");
                 dbService.loadFullGame();
-                // loadFullGame sets all players to active=false (no one is connected yet)
                 System.out.println("[ServerStartup] Game state restored. Starting 60s rejoin timer...");
 
                 ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
                 scheduler.schedule(() -> {
                     Game game = Game.getINSTANCE();
                     if (game.isRunning()) {
-                        // Fix 2: Check active flag — only players who sent JOIN_LOBBY
-                        // after the restart have active=true
                         Set<String> missingIds = game.getPlayers().stream()
                                 .filter(p -> !p.isActive())
                                 .map(Player::getPlayerId)
@@ -59,14 +56,15 @@ public class ServerStartupService implements CommandLineRunner {
                             System.out.println("[ServerStartup] Rejoin timer expired – missing players: " + missingIds);
                             System.out.println("[ServerStartup] Aborting game.");
 
-                            // Fix 5: Remove disconnected players before abort
                             List<Player> disconnected = game.getPlayers().stream()
                                     .filter(p -> !p.isActive())
                                     .collect(Collectors.toList());
                             for (Player p : disconnected) {
                                 dbService.removePlayer(p.getPlayerId());
                             }
-                            game.getPlayers().removeAll(disconnected);
+                            List<Player> remaining = new java.util.ArrayList<>(game.getPlayers());
+                            remaining.removeAll(disconnected);
+                            game.restorePlayers(remaining);
 
                             game.abort();
                             dbService.updateGameStatus(
@@ -74,7 +72,6 @@ public class ServerStartupService implements CommandLineRunner {
                                     game.getCurrentPhase().toString()
                             );
 
-                            // Fix 3: Send GAME_ABORTED to connected clients
                             ObjectNode abortMsg = mapper.createObjectNode();
                             ObjectNode abortPayload = mapper.createObjectNode();
                             abortMsg.put("type", "GAME_ABORTED");

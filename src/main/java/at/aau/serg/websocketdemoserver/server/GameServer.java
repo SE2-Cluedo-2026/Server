@@ -58,13 +58,10 @@ public class GameServer {
         ObjectNode responsePayload = mapper.createObjectNode();
         Game game = lobbyManager.getGame();
 
-        // SCHRITT 1: Rejoin während RUNNING - ZUERST prüfen!
         if (game.isRunning() && lobbyManager.isPlayerInGame(playerKey)) {
             System.out.println("[JoinLobby] RUNNING Rejoin erkannt!");
             eventListener.onPlayerRejoined(playerKey);
 
-            // Use PLAYER_REJOINED_RUNNING so the frontend uses the correct handler
-            // that populates all ClientState fields needed for board restoration
             response.put("type", LobbyMessageType.PLAYER_REJOINED_RUNNING.toString());
             responsePayload.put("playerId", playerKey);
             responsePayload.put("gameStatus", "RUNNING");
@@ -92,7 +89,6 @@ public class GameServer {
                 responsePayload.set("myCards", cardsArray);
             }
 
-            // Full player list with positions, characters, ready states
             ArrayNode playersArray = mapper.createArrayNode();
             for (Player p : game.getPlayers()) {
                 ObjectNode playerNode = mapper.createObjectNode();
@@ -108,7 +104,6 @@ public class GameServer {
             responsePayload.set("players", playersArray);
             responsePayload.set("existingPlayers", playersArray);
 
-            // playerPositions map: playerId → position string
             ObjectNode positionsNode = mapper.createObjectNode();
             for (Player p : game.getPlayers()) {
                 if (p.getCurrentPosition() != null) {
@@ -117,7 +112,6 @@ public class GameServer {
             }
             responsePayload.set("playerPositions", positionsNode);
 
-            // playerCharacterMap: playerId → characterType string
             ObjectNode charMapNode = mapper.createObjectNode();
             for (Player p : game.getPlayers()) {
                 if (p.getCharacter() != null) {
@@ -126,7 +120,6 @@ public class GameServer {
             }
             responsePayload.set("playerCharacterMap", charMapNode);
 
-            // eliminatedPlayers array
             ArrayNode eliminatedArray = mapper.createArrayNode();
             for (Player p : game.getPlayers()) {
                 if (p.isEliminated()) {
@@ -139,7 +132,6 @@ public class GameServer {
             return response;
         }
 
-        // SCHRITT 2: Block new players from joining a RUNNING game
         if (game.isRunning()) {
             response.put("type", LobbyMessageType.GAME_FULL.toString());
             responsePayload.put("playerId", playerKey);
@@ -148,7 +140,6 @@ public class GameServer {
             return response;
         }
 
-        // SCHRITT 3: isGameFull prüfen
         if (lobbyManager.isGameFull()) {
             response.put("type", LobbyMessageType.GAME_FULL.toString());
             responsePayload.put("playerId", playerKey);
@@ -157,7 +148,6 @@ public class GameServer {
             return response;
         }
 
-        // SCHRITT 4: Normaler Join/Rejoin in LOBBY
         boolean playerIsNew = lobbyManager.addPlayer(playerKey);
         responsePayload.put("playerId", playerKey);
 
@@ -181,7 +171,6 @@ public class GameServer {
 
         if (playerIsNew) {
             response.put("type", LobbyMessageType.NEW_PLAYER_JOINED.toString());
-            // Bug 4 fix: persist the new player so DB is consistent with in-memory state
             dbService.saveGame(lobbyManager.getGame());
         } else {
             response.put("type", LobbyMessageType.PLAYER_REJOINED.toString());
@@ -205,10 +194,6 @@ public class GameServer {
         ObjectNode responsePayload = mapper.createObjectNode();
         responsePayload.put("playerId", playerId);
 
-        // If the game is already running, we do NOT remove the player completely.
-        // We want to allow them to rejoin within 30 seconds.
-        // The client will disconnect immediately after this, which triggers the
-        // WebSocketEventListener.handleDisconnect() logic (GAME_PAUSED + timer).
         if (game.isRunning() && game.playerAlreadyJoined(playerId)) {
             response.put("type", LobbyMessageType.PLAYER_REMOVED.toString());
             response.set("payload", responsePayload);
@@ -245,14 +230,12 @@ public class GameServer {
                 responsePayload.put("playerId", playerId);
                 responsePayload.put("characterType", characterType.toString());
                 responsePayload.put("ready", true);
-                // verfügbare Charaktere zurückschicken
                 ArrayNode availableCharacters = mapper.createArrayNode();
                 for (CharacterType c : lobbyManager.getAvailableCharacters()) {
                     availableCharacters.add(c.toString());
                 }
                 responsePayload.set("availableCharacters", availableCharacters);
 
-                // alle Spieler zurückschicken
                 ArrayNode existingPlayers = mapper.createArrayNode();
                 for (Player p : lobbyManager.getPlayers()) {
                     ObjectNode playerNode = mapper.createObjectNode();
@@ -394,17 +377,13 @@ public class GameServer {
         }
     }
 
-    /**
-     * After GAME_FINISHED, reset the game back to LOBBY after a delay
-     * so all clients see the winner screen first, then get navigated back.
-     */
     private void scheduleGameReset(int delaySeconds) {
         scheduler.schedule(() -> {
             try {
                 Game game = lobbyManager.getGame();
                 if (game == null) return;
 
-                game.abort(); // resets status to LOBBY, clears cards/positions/characters
+                game.abort();
                 dbService.updateGameStatus(game.getStatus().toString(), game.getCurrentPhase().toString());
 
                 ObjectNode abortMsg = mapper.createObjectNode();
@@ -534,7 +513,6 @@ public class GameServer {
                     pos.setRoomType(roomType);
                     isInRoom = true;
                 } catch (IllegalArgumentException e) {
-                    // Treat as a generic board position string
                     pos.setBoardPosition(0, 0);
                 }
             }
@@ -554,10 +532,6 @@ public class GameServer {
                     if (field.getFieldType() == FieldType.HALLWAY_FIELD) {
                         scheduleAutoEndTurn(0);
                     } else if (field.getFieldType() == FieldType.DOOR_FIELD) {
-                        // Player landed on a door with 0 moves left — keep phase
-                        // as WAITING_FOR_MOVE so they can still enter the room.
-                        // If they don't enter, the frontend can end the turn manually,
-                        // or we schedule a delayed auto-end as fallback.
                         game.getTurnManager().setPhaseWaitingForMove();
                         scheduleAutoEndTurn(15);
                     }
@@ -742,7 +716,6 @@ public class GameServer {
                 response.put("type", GameMessageType.GAME_FINISHED.toString());
                 responsePayload.put("winner", accuserID);
 
-                // After showing the winner, schedule a reset back to lobby
                 scheduleGameReset(5);
             } else {
                 accuser.eliminate();

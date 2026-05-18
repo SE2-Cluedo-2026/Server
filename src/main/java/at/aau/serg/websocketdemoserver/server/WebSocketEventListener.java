@@ -27,25 +27,17 @@ public class WebSocketEventListener {
     private final ScheduledExecutorService scheduler =
             Executors.newScheduledThreadPool(1);
 
-    // playerId → laufender Timer
     private final Map<String, ScheduledFuture<?>> disconnectTimers =
             new ConcurrentHashMap<>();
 
-    // sessionId → playerId (to look up who disconnected)
     private final Map<String, String> sessionToPlayer =
             new ConcurrentHashMap<>();
 
-    // Bug 3 fix: playerId → current sessionId (to detect stale disconnect events).
-    // When a player reconnects fast, their old session's disconnect event may arrive
-    // after the new session is already registered. We guard against this below.
     private final Map<String, String> playerToCurrentSession =
             new ConcurrentHashMap<>();
 
-    // Register a STOMP session for a player.
-    // Called from WebSocketBrokerController on JOIN_LOBBY.
     public void registerSession(String sessionId, String playerId) {
         sessionToPlayer.put(sessionId, playerId);
-        // Bug 3 fix: always update to the newest session for this player
         playerToCurrentSession.put(playerId, sessionId);
         System.out.println("[Session] Registered: " + sessionId + " → " + playerId);
     }
@@ -64,8 +56,6 @@ public class WebSocketEventListener {
         System.out.println("[Disconnect] PlayerId: " + playerId);
         System.out.println("[Disconnect] Game Status: " + Game.getINSTANCE().getStatus());
 
-        // Bug 3 fix: if this session is no longer the player's current session
-        // (i.e., they reconnected before this disconnect event fired), ignore it.
         String currentSession = playerToCurrentSession.get(playerId);
         if (currentSession != null && !currentSession.equals(sessionId)) {
             System.out.println("[Disconnect] Stale session event for " + playerId + " — ignoring.");
@@ -74,10 +64,8 @@ public class WebSocketEventListener {
 
         Game game = Game.getINSTANCE();
 
-        // Nur wenn Spiel läuft
         if (game.getStatus() != GameStatus.RUNNING) return;
 
-        // Spieler als inaktiv markieren
         for (Player p : game.getPlayers()) {
             if (p.getPlayerId().equals(playerId)) {
                 p.setActive(false);
@@ -85,7 +73,6 @@ public class WebSocketEventListener {
             }
         }
 
-        // GAME_PAUSED an alle schicken
         ObjectNode pauseMsg = mapper.createObjectNode();
         ObjectNode pausePayload = mapper.createObjectNode();
         pauseMsg.put("type", "GAME_PAUSED");
@@ -97,10 +84,8 @@ public class WebSocketEventListener {
                 "/topic/game-response", pauseMsg);
 
         System.out.println("Timer Started");
-        // 30 Sekunden Countdown starten
         ScheduledFuture<?> timer = scheduler.schedule(() -> {
 
-            // Nach 30s prüfen ob Spieler noch weg
             Player missing = null;
             for (Player p : game.getPlayers()) {
                 if (p.getPlayerId().equals(playerId)) {
@@ -110,7 +95,6 @@ public class WebSocketEventListener {
             }
 
             if (missing != null && !missing.isActive()) {
-                // Spieler nicht zurückgekehrt → GAME_ABORTED
                 game.getPlayers().remove(missing);
                 game.abort();
 
@@ -122,7 +106,6 @@ public class WebSocketEventListener {
                 abortPayload.put("status", game.getStatus().toString());
                 abortPayload.put("currentPhase", game.getCurrentPhase().toString());
 
-                // Include lobby reset data so clients can return to lobby
                 ArrayNode availableCharacters = mapper.createArrayNode();
                 for (CharacterType c : game.getAvailableCharacters()) {
                     availableCharacters.add(c.toString());
@@ -154,9 +137,7 @@ public class WebSocketEventListener {
         disconnectTimers.put(playerId, timer);
     }
 
-    // Called when a player rejoins — cancels the abort timer and resumes the game
     public void onPlayerRejoined(String playerId) {
-        // Mark the player as active again
         for (Player p : Game.getINSTANCE().getPlayers()) {
             if (p.getPlayerId().equals(playerId)) {
                 p.setActive(true);
@@ -168,7 +149,6 @@ public class WebSocketEventListener {
             timer.cancel(false);
         }
 
-        // CONTINUE_GAME to all clients
         ObjectNode continueMsg = mapper.createObjectNode();
         ObjectNode continuePayload = mapper.createObjectNode();
         continueMsg.put("type", "CONTINUE_GAME");
@@ -179,7 +159,6 @@ public class WebSocketEventListener {
                 "/topic/game-response", continueMsg);
     }
 
-    // Clean up session tracking when a player permanently leaves
     public void removePlayer(String playerId) {
         playerToCurrentSession.remove(playerId);
         disconnectTimers.remove(playerId);

@@ -11,7 +11,6 @@ public class Player {
     @Getter
     private final String playerId;
     @Getter
-    @Setter
     private CharacterType character;
     @Getter
     @Setter
