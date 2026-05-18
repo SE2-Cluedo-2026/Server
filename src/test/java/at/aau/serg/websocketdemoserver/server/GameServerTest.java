@@ -76,18 +76,23 @@ class GameServerTest {
 
     @Test
     void joinLobbyReturnsGameFullWhenLobbyIsFull() throws Exception {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
         when(lobbyManager.isGameFull()).thenReturn(true);
 
         ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"player1\"}"));
 
-        assertEquals(LobbyMessageType.GAME_FULL.toString(), response.get("type").asText());
-        assertEquals("player1", response.get("payload").get("playerId").asText());
-        assertEquals("Lobby is full", response.get("payload").get("message").asText());
+        assertEquals(LobbyMessageType.GAME_FULL.toString(), response.get("type").textValue());
+        assertEquals("player1", response.get("payload").get("playerId").textValue());
+        assertEquals("Lobby is full", response.get("payload").get("message").textValue());
         verify(lobbyManager, never()).addPlayer(anyString());
     }
 
     @Test
     void joinLobbyReturnsNewPlayerWithAvailableCharactersAndExistingPlayers() throws Exception {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
         Player existing = new Player("player0");
         existing.setCharacter(CharacterType.MRS_PINK);
         existing.markReady();
@@ -99,14 +104,14 @@ class GameServerTest {
 
         ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"player1\"}"));
 
-        assertEquals(LobbyMessageType.NEW_PLAYER_JOINED.toString(), response.get("type").asText());
-        assertEquals("player1", response.get("payload").get("playerId").asText());
-        assertEquals(CharacterType.DR_BLUE.toString(), response.get("payload").get("availableCharacters").get(0).asText());
+        assertEquals(LobbyMessageType.NEW_PLAYER_JOINED.toString(), response.get("type").textValue());
+        assertEquals("player1", response.get("payload").get("playerId").textValue());
+        assertEquals(CharacterType.DR_BLUE.toString(), response.get("payload").get("availableCharacters").get(0).textValue());
 
         JsonNode existingPlayer = response.get("payload").get("existingPlayers").get(0);
-        assertEquals("player0", existingPlayer.get("playerId").asText());
+        assertEquals("player0", existingPlayer.get("playerId").textValue());
         assertTrue(existingPlayer.get("ready").asBoolean());
-        assertEquals(CharacterType.MRS_PINK.toString(), existingPlayer.get("characterType").asText());
+        assertEquals(CharacterType.MRS_PINK.toString(), existingPlayer.get("characterType").textValue());
     }
 
     @Test
@@ -123,13 +128,15 @@ class GameServerTest {
 
         ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"player1\"}"));
 
-        assertEquals(LobbyMessageType.PLAYER_REJOINED.toString(), response.get("type").asText());
+        assertEquals(LobbyMessageType.PLAYER_REJOINED.toString(), response.get("type").textValue());
         assertEquals(CharacterType.MRS_PINK.toString(),
-                response.get("payload").get("availableCharacters").get(0).asText());
+                response.get("payload").get("availableCharacters").get(0).textValue());
     }
 
     @Test
     void joinLobbyExistingPlayerWithoutCharacterDoesNotContainCharacterType() throws Exception {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
         Player existing = new Player("player0");
 
         when(lobbyManager.isGameFull()).thenReturn(false);
@@ -144,22 +151,28 @@ class GameServerTest {
 
     @Test
     void leaveLobbyReturnsPlayerRemovedOnSuccess() throws Exception {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
         when(lobbyManager.leaveLobby("player1")).thenReturn(true);
 
         ObjectNode response = gameServer.leaveLobby(mapper.readTree("{\"playerId\":\"player1\"}"));
 
-        assertEquals(LobbyMessageType.PLAYER_REMOVED.toString(), response.get("type").asText());
-        assertEquals("player1", response.get("payload").get("playerId").asText());
+        assertEquals(LobbyMessageType.PLAYER_REMOVED.toString(), response.get("type").textValue());
+        assertEquals("player1", response.get("payload").get("playerId").textValue());
     }
 
     @Test
     void leaveLobbyReturnsErrorWhenPlayerIsUnknown() throws Exception {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
         when(lobbyManager.leaveLobby("unknown")).thenReturn(false);
 
         ObjectNode response = gameServer.leaveLobby(mapper.readTree("{\"playerId\":\"unknown\"}"));
 
-        assertEquals("LEAVE_ERROR", response.get("type").asText());
-        assertEquals("unknown", response.get("payload").get("playerId").asText());
+        assertEquals("LEAVE_ERROR", response.get("type").textValue());
+        assertEquals("unknown", response.get("payload").get("playerId").textValue());
     }
 
     @Test
@@ -175,11 +188,11 @@ class GameServerTest {
         ObjectNode response = gameServer.setCharacterTypeAndStatusReady(
                 mapper.readTree("{\"playerId\":\"player1\",\"characterType\":\"MRS_PINK\"}"));
 
-        assertEquals(LobbyMessageType.SET_CHARACTER_TYPE_AND_STATUS_READY.toString(), response.get("type").asText());
-        assertEquals("player1", response.get("payload").get("playerId").asText());
-        assertEquals("MRS_PINK", response.get("payload").get("characterType").asText());
+        assertEquals(LobbyMessageType.SET_CHARACTER_TYPE_AND_STATUS_READY.toString(), response.get("type").textValue());
+        assertEquals("player1", response.get("payload").get("playerId").textValue());
+        assertEquals("MRS_PINK", response.get("payload").get("characterType").textValue());
         assertTrue(response.get("payload").get("ready").asBoolean());
-        assertEquals("DR_BLUE", response.get("payload").get("availableCharacters").get(0).asText());
+        assertEquals("DR_BLUE", response.get("payload").get("availableCharacters").get(0).textValue());
     }
 
     @Test
@@ -189,8 +202,8 @@ class GameServerTest {
         ObjectNode response = gameServer.setCharacterTypeAndStatusReady(
                 mapper.readTree("{\"playerId\":\"player1\",\"characterType\":\"MRS_PINK\"}"));
 
-        assertEquals("SET_READY_ERROR", response.get("type").asText());
-        assertEquals("Player not found", response.get("payload").get("reason").asText());
+        assertEquals("SET_READY_ERROR", response.get("type").textValue());
+        assertEquals("Player not found", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -198,8 +211,8 @@ class GameServerTest {
         ObjectNode response = gameServer.setCharacterTypeAndStatusReady(
                 mapper.readTree("{\"playerId\":\"player1\",\"characterType\":\"INVALID\"}"));
 
-        assertEquals("SET_READY_ERROR", response.get("type").asText());
-        assertEquals("Invalid character type", response.get("payload").get("reason").asText());
+        assertEquals("SET_READY_ERROR", response.get("type").textValue());
+        assertEquals("Invalid character type", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -208,8 +221,8 @@ class GameServerTest {
 
         ObjectNode response = gameServer.startGame(mapper.readTree("{}"));
 
-        assertEquals(LobbyMessageType.START_GAME_ERROR.toString(), response.get("type").asText());
-        assertEquals("Not all players are ready", response.get("payload").get("reason").asText());
+        assertEquals(LobbyMessageType.START_GAME_ERROR.toString(), response.get("type").textValue());
+        assertEquals("Not all players are ready", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -229,8 +242,8 @@ class GameServerTest {
 
         ObjectNode response = gameServer.rollDice(mapper.readTree("{\"playerId\":\"player1\"}"));
 
-        assertEquals("ROLL_DICE_ERROR", response.get("type").asText());
-        assertEquals("Game is not running", response.get("payload").get("reason").asText());
+        assertEquals("ROLL_DICE_ERROR", response.get("type").textValue());
+        assertEquals("Game is not running", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -242,8 +255,8 @@ class GameServerTest {
 
         ObjectNode response = gameServer.rollDice(mapper.readTree("{\"playerId\":\"player1\"}"));
 
-        assertEquals("ROLL_DICE_ERROR", response.get("type").asText());
-        assertEquals("It is not your turn", response.get("payload").get("reason").asText());
+        assertEquals("ROLL_DICE_ERROR", response.get("type").textValue());
+        assertEquals("It is not your turn", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -258,8 +271,8 @@ class GameServerTest {
 
         ObjectNode response = gameServer.rollDice(mapper.readTree("{\"playerId\":\"player1\"}"));
 
-        assertEquals("ROLL_DICE_ERROR", response.get("type").asText());
-        assertEquals("Not in roll phase", response.get("payload").get("reason").asText());
+        assertEquals("ROLL_DICE_ERROR", response.get("type").textValue());
+        assertEquals("Not in roll phase", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -270,8 +283,8 @@ class GameServerTest {
 
         ObjectNode response = gameServer.move(mapper.readTree("{\"playerId\":\"unknown\",\"position\":\"1,2\"}"));
 
-        assertEquals("MOVE_ERROR", response.get("type").asText());
-        assertEquals("Player not found", response.get("payload").get("reason").asText());
+        assertEquals("MOVE_ERROR", response.get("type").textValue());
+        assertEquals("Player not found", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -284,8 +297,8 @@ class GameServerTest {
 
         ObjectNode response = gameServer.enterRoom(mapper.readTree("{\"playerId\":\"player1\",\"roomId\":\"INVALID\"}"));
 
-        assertEquals("ENTER_ROOM_ERROR", response.get("type").asText());
-        assertTrue(response.get("payload").get("reason").asText().startsWith("Invalid room:"));
+        assertEquals("ENTER_ROOM_ERROR", response.get("type").textValue());
+        assertTrue(response.get("payload").get("reason").textValue().startsWith("Invalid room:"));
     }
 
     @Test
@@ -298,8 +311,8 @@ class GameServerTest {
 
         ObjectNode response = gameServer.takeHiddenWay(mapper.readTree("{\"playerId\":\"player1\"}"));
 
-        assertEquals("HIDDEN_WAY_ERROR", response.get("type").asText());
-        assertEquals("Player is not in a room", response.get("payload").get("reason").asText());
+        assertEquals("HIDDEN_WAY_ERROR", response.get("type").textValue());
+        assertEquals("Player is not in a room", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -315,8 +328,8 @@ class GameServerTest {
 
         ObjectNode response = gameServer.takeHiddenWay(mapper.readTree("{\"playerId\":\"player1\"}"));
 
-        assertEquals("HIDDEN_WAY_ERROR", response.get("type").asText());
-        assertEquals("No hidden passage from this room", response.get("payload").get("reason").asText());
+        assertEquals("HIDDEN_WAY_ERROR", response.get("type").textValue());
+        assertEquals("No hidden passage from this room", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -335,9 +348,9 @@ class GameServerTest {
         ObjectNode response = gameServer.handleAccusation(mapper.readTree(
                 "{\"accuserID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
 
-        assertEquals(GameMessageType.GAME_FINISHED.toString(), response.get("type").asText());
+        assertEquals(GameMessageType.GAME_FINISHED.toString(), response.get("type").textValue());
         assertTrue(response.get("payload").get("correct").asBoolean());
-        assertEquals("player1", response.get("payload").get("winner").asText());
+        assertEquals("player1", response.get("payload").get("winner").textValue());
         verify(game).finish();
     }
 
@@ -356,7 +369,7 @@ class GameServerTest {
         ObjectNode response = gameServer.handleAccusation(mapper.readTree(
                 "{\"accuserID\":\"player1\",\"suspect\":\"DR_BLUE\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
 
-        assertEquals(GameMessageType.MAKE_ACCUSATION.toString(), response.get("type").asText());
+        assertEquals(GameMessageType.MAKE_ACCUSATION.toString(), response.get("type").textValue());
         assertFalse(response.get("payload").get("correct").asBoolean());
         assertTrue(response.get("payload").get("eliminated").asBoolean());
         assertTrue(accuser.isEliminated());
@@ -379,8 +392,8 @@ class GameServerTest {
         ObjectNode response = gameServer.handleAccusation(mapper.readTree(
                 "{\"accuserID\":\"player1\",\"suspect\":\"DR_BLUE\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
 
-        assertEquals(GameMessageType.GAME_ABORTED.toString(), response.get("type").asText());
-        assertEquals("All players eliminated", response.get("payload").get("reason").asText());
+        assertEquals(GameMessageType.GAME_ABORTED.toString(), response.get("type").textValue());
+        assertEquals("All players eliminated", response.get("payload").get("reason").textValue());
         verify(game).abort();
     }
 
@@ -393,8 +406,8 @@ class GameServerTest {
         ObjectNode response = gameServer.handleAccusation(mapper.readTree(
                 "{\"accuserID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
 
-        assertEquals("ACCUSATION_ERROR", response.get("type").asText());
-        assertEquals("Game is not running", response.get("payload").get("reason").asText());
+        assertEquals("ACCUSATION_ERROR", response.get("type").textValue());
+        assertEquals("Game is not running", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -417,8 +430,8 @@ class GameServerTest {
         ObjectNode response = gameServer.handleSuggestion(mapper.readTree(
                 "{\"suggesterID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
 
-        assertEquals(GameMessageType.SUGGESTION_RESULT.toString(), response.get("type").asText());
-        assertEquals("player2", response.get("payload").get("responderID").asText());
+        assertEquals(GameMessageType.SUGGESTION_RESULT.toString(), response.get("type").textValue());
+        assertEquals("player2", response.get("payload").get("responderID").textValue());
         assertEquals(2, response.get("payload").get("matchingCards").size());
 
         @SuppressWarnings("unchecked")
@@ -454,20 +467,20 @@ class GameServerTest {
 
         ObjectNode response = gameServer.startGame(mapper.readTree("{}"));
 
-        assertEquals(LobbyMessageType.GAME_STARTED.toString(), response.get("type").asText());
+        assertEquals(LobbyMessageType.GAME_STARTED.toString(), response.get("type").textValue());
 
         JsonNode payload = response.get("payload");
 
-        assertEquals("game-1", payload.get("gameId").asText());
-        assertEquals("RUNNING", payload.get("status").asText());
-        assertEquals("WAITING_FOR_ROLL", payload.get("currentPhase").asText());
+        assertEquals("game-1", payload.get("gameId").textValue());
+        assertEquals("RUNNING", payload.get("status").textValue());
+        assertEquals("WAITING_FOR_ROLL", payload.get("currentPhase").textValue());
         assertEquals(0, payload.get("currentPlayerIndex").asInt());
 
         JsonNode card = payload.get("players").get(0).get("cards").get(0);
 
-        assertEquals("r1", card.get("cardId").asText());
-        assertEquals("Kitchen", card.get("name").asText());
-        assertEquals("RoomCard", card.get("type").asText());
+        assertEquals("r1", card.get("cardId").textValue());
+        assertEquals("Kitchen", card.get("name").textValue());
+        assertEquals("RoomCard", card.get("type").textValue());
     }
 
     @Test
@@ -487,9 +500,9 @@ class GameServerTest {
                 mapper.readTree("{\"playerId\":\"player1\"}")
         );
 
-        assertEquals(GameMessageType.END_TURN.toString(), response.get("type").asText());
-        assertEquals("game-1", response.get("payload").get("gameId").asText());
-        assertEquals("WAITING_FOR_ROLL", response.get("payload").get("currentPhase").asText());
+        assertEquals(GameMessageType.END_TURN.toString(), response.get("type").textValue());
+        assertEquals("game-1", response.get("payload").get("gameId").textValue());
+        assertEquals("WAITING_FOR_ROLL", response.get("payload").get("currentPhase").textValue());
         assertEquals(2, response.get("payload").get("currentPlayerIndex").asInt());
 
         verify(game).endTurn();
@@ -517,11 +530,11 @@ class GameServerTest {
                 mapper.readTree("{\"playerId\":\"player1\"}")
         );
 
-        assertEquals(GameMessageType.ROLL_DICE.toString(), response.get("type").asText());
-        assertEquals("player1", response.get("payload").get("playerId").asText());
+        assertEquals(GameMessageType.ROLL_DICE.toString(), response.get("type").textValue());
+        assertEquals("player1", response.get("payload").get("playerId").textValue());
         assertEquals(7, response.get("payload").get("value").asInt());
         assertEquals("WAITING_FOR_MOVE",
-                response.get("payload").get("currentPhase").asText());
+                response.get("payload").get("currentPhase").textValue());
     }
 
     @Test
@@ -540,9 +553,9 @@ class GameServerTest {
                 mapper.readTree("{\"playerId\":\"player1\",\"position\":\"KITCHEN\"}")
         );
 
-        assertEquals(GameMessageType.MOVE.toString(), response.get("type").asText());
-        assertEquals("player1", response.get("payload").get("playerId").asText());
-        assertEquals("KITCHEN", response.get("payload").get("position").asText());
+        assertEquals(GameMessageType.MOVE.toString(), response.get("type").textValue());
+        assertEquals("player1", response.get("payload").get("playerId").textValue());
+        assertEquals("KITCHEN", response.get("payload").get("position").textValue());
 
         verify(turnManager).decrementMove(true);
     }
@@ -574,7 +587,7 @@ class GameServerTest {
                 mapper.readTree("{\"playerId\":\"player1\",\"position\":\"0,0\"}")
         );
 
-        assertEquals(GameMessageType.MOVE.toString(), response.get("type").asText());
+        assertEquals(GameMessageType.MOVE.toString(), response.get("type").textValue());
 
         verify(turnManager).decrementMove(false);
         verify(game, timeout(1000)).endTurn();
@@ -595,11 +608,11 @@ class GameServerTest {
                 mapper.readTree("{\"playerId\":\"player1\",\"roomId\":\"KITCHEN\"}")
         );
 
-        assertEquals(GameMessageType.ENTER_ROOM.toString(), response.get("type").asText());
-        assertEquals("player1", response.get("payload").get("playerId").asText());
-        assertEquals("KITCHEN", response.get("payload").get("roomId").asText());
+        assertEquals(GameMessageType.ENTER_ROOM.toString(), response.get("type").textValue());
+        assertEquals("player1", response.get("payload").get("playerId").textValue());
+        assertEquals("KITCHEN", response.get("payload").get("roomId").textValue());
         assertEquals("IN_ROOM",
-                response.get("payload").get("currentPhase").asText());
+                response.get("payload").get("currentPhase").textValue());
 
         verify(turnManager).enterRoom();
     }
@@ -623,10 +636,10 @@ class GameServerTest {
                 mapper.readTree("{\"playerId\":\"player1\"}")
         );
 
-        assertEquals(GameMessageType.TAKE_HIDDEN_WAY.toString(), response.get("type").asText());
-        assertEquals("BALLROOM", response.get("payload").get("targetRoom").asText());
+        assertEquals(GameMessageType.TAKE_HIDDEN_WAY.toString(), response.get("type").textValue());
+        assertEquals("BALLROOM", response.get("payload").get("targetRoom").textValue());
         assertEquals("IN_ROOM",
-                response.get("payload").get("currentPhase").asText());
+                response.get("payload").get("currentPhase").textValue());
     }
 
     private CaseFile matchingCaseFile() {
@@ -651,10 +664,10 @@ class GameServerTest {
         );
 
         assertEquals(GameMessageType.SUGGESTION_ERROR.toString(),
-                response.get("type").asText());
+                response.get("type").textValue());
 
         assertEquals("Game is not running",
-                response.get("payload").get("reason").asText());
+                response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -672,10 +685,10 @@ class GameServerTest {
         );
 
         assertEquals(GameMessageType.SUGGESTION_ERROR.toString(),
-                response.get("type").asText());
+                response.get("type").textValue());
 
         assertEquals("Suggester not found",
-                response.get("payload").get("reason").asText());
+                response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -687,10 +700,10 @@ class GameServerTest {
         );
 
         assertEquals(GameMessageType.SUGGESTION_ERROR.toString(),
-                response.get("type").asText());
+                response.get("type").textValue());
 
         assertEquals("Invalid suspect, room or weapon",
-                response.get("payload").get("reason").asText());
+                response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -702,10 +715,10 @@ class GameServerTest {
         );
 
         assertEquals(GameMessageType.SUGGESTION_ERROR.toString(),
-                response.get("type").asText());
+                response.get("type").textValue());
 
         assertEquals("Missing suggestion payload field",
-                response.get("payload").get("reason").asText());
+                response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -723,10 +736,10 @@ class GameServerTest {
         );
 
         assertEquals("ACCUSATION_ERROR",
-                response.get("type").asText());
+                response.get("type").textValue());
 
         assertEquals("Accuser not found",
-                response.get("payload").get("reason").asText());
+                response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -738,10 +751,10 @@ class GameServerTest {
         );
 
         assertEquals("ACCUSATION_ERROR",
-                response.get("type").asText());
+                response.get("type").textValue());
 
         assertEquals("Invalid suspect, room or weapon",
-                response.get("payload").get("reason").asText());
+                response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -762,10 +775,10 @@ class GameServerTest {
         );
 
         assertEquals("ACCUSATION_ERROR",
-                response.get("type").asText());
+                response.get("type").textValue());
 
         assertEquals("Eliminated players cannot make accusations",
-                response.get("payload").get("reason").asText());
+                response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -781,11 +794,11 @@ class GameServerTest {
         );
 
         assertEquals("MOVE_ERROR",
-                response.get("type").asText());
+                response.get("type").textValue());
 
         assertTrue(response.get("payload")
                 .get("reason")
-                .asText()
+                .textValue()
                 .startsWith("Error processing move:"));
     }
 
@@ -796,11 +809,11 @@ class GameServerTest {
         );
 
         assertEquals("ENTER_ROOM_ERROR",
-                response.get("type").asText());
+                response.get("type").textValue());
 
         assertTrue(response.get("payload")
                 .get("reason")
-                .asText()
+                .textValue()
                 .startsWith("Error entering room:"));
     }
 
@@ -816,16 +829,18 @@ class GameServerTest {
         );
 
         assertEquals("HIDDEN_WAY_ERROR",
-                response.get("type").asText());
+                response.get("type").textValue());
 
         assertEquals("Player not found",
-                response.get("payload").get("reason").asText());
+                response.get("payload").get("reason").textValue());
     }
 
     @Test
     void joinLobbyRejoinedRunningReturnsCompleteStateWithCardsPositionsAndEliminations() throws Exception {
         Game game = mock(Game.class);
         TurnManager turnManager = mock(TurnManager.class);
+        WebSocketEventListener eventListener = mock(WebSocketEventListener.class);
+        ReflectionTestUtils.setField(gameServer, "eventListener", eventListener);
 
         Player rejoined = new Player("player1");
         rejoined.setCharacter(CharacterType.MRS_PINK);
@@ -839,69 +854,65 @@ class GameServerTest {
         eliminated.setCurrentPosition(boardPos);
 
         Player roomPlayer = new Player("player3");
+        roomPlayer.setCharacter(CharacterType.DR_RED);
         Position roomPos = new Position();
         roomPos.setRoomType(RoomType.KITCHEN);
         roomPlayer.setCurrentPosition(roomPos);
 
-        when(lobbyManager.isGameFull()).thenReturn(false);
-        when(lobbyManager.addPlayer("player1")).thenReturn(false);
-        when(lobbyManager.getAvailableCharacters()).thenReturn(List.of(CharacterType.DR_RED));
-        when(lobbyManager.getPlayers()).thenReturn(List.of(rejoined, eliminated));
         when(lobbyManager.getGame()).thenReturn(game);
         when(game.isRunning()).thenReturn(true);
-        when(game.getGameId()).thenReturn("game-1");
-        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
-        when(game.getPlayers()).thenReturn(List.of(rejoined, eliminated, roomPlayer));
+        when(lobbyManager.isPlayerInGame("player1")).thenReturn(true);
         when(game.getTurnManager()).thenReturn(turnManager);
-        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_MOVE);
-        when(turnManager.getCurrentPlayerId(game.getPlayers())).thenReturn("player1");
         when(turnManager.getCurrentPlayerId()).thenReturn(0);
-        when(turnManager.getDiceValue()).thenReturn(6);
-        when(turnManager.getMovesRemaining()).thenReturn(4);
+        when(turnManager.getCurrentPlayerId(anyList())).thenReturn("player1");
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_MOVE);
+        when(game.getPlayers()).thenReturn(List.of(rejoined, eliminated, roomPlayer));
 
         ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"player1\"}"));
 
-        assertEquals(LobbyMessageType.PLAYER_REJOINED_RUNNING.toString(), response.get("type").asText());
+        assertEquals(LobbyMessageType.PLAYER_REJOINED_RUNNING.toString(), response.get("type").textValue());
         JsonNode payload = response.get("payload");
-        assertEquals("game-1", payload.get("gameId").asText());
-        assertEquals("MRS_PINK", payload.get("myCharacter").asText());
-        assertEquals("s1", payload.get("myCards").get(0).get("cardId").asText());
-        assertFalse(payload.get("isEliminated").asBoolean());
-        assertEquals("2,3", payload.get("playerPositions").get("player2").asText());
-        assertEquals("KITCHEN", payload.get("playerPositions").get("player3").asText());
-        assertEquals("DR_BLUE", payload.get("playerCharacterMap").get("player2").asText());
-        assertEquals("player2", payload.get("eliminatedPlayers").get(0).asText());
-        assertEquals("player1", payload.get("currentPlayerId").asText());
-        assertEquals(6, payload.get("diceValue").asInt());
-        assertEquals(4, payload.get("remainingMoves").asInt());
+        assertEquals("player1", payload.get("playerId").textValue());
+        assertEquals("RUNNING", payload.get("gameStatus").textValue());
+        assertEquals("WAITING_FOR_MOVE", payload.get("currentPhase").textValue());
+        assertEquals("MRS_PINK", payload.get("myCharacter").textValue());
+        assertEquals("s1", payload.get("myCards").get(0).get("cardId").textValue());
+
+        JsonNode players = payload.get("players");
+        assertEquals(3, players.size());
+        assertEquals("player2", players.get(1).get("playerId").textValue());
+        assertTrue(players.get(1).get("eliminated").asBoolean());
+        assertEquals("DR_BLUE", players.get(1).get("characterType").textValue());
+        assertEquals("player3", players.get(2).get("playerId").textValue());
+
+        verify(eventListener).onPlayerRejoined("player1");
     }
 
     @Test
     void joinLobbyRejoinedRunningWithoutMatchingPlayerStillReturnsEmptyOptionalFields() throws Exception {
         Game game = mock(Game.class);
         TurnManager turnManager = mock(TurnManager.class);
+        WebSocketEventListener eventListener = mock(WebSocketEventListener.class);
+        ReflectionTestUtils.setField(gameServer, "eventListener", eventListener);
 
-        when(lobbyManager.isGameFull()).thenReturn(false);
-        when(lobbyManager.addPlayer("ghost")).thenReturn(false);
-        when(lobbyManager.getAvailableCharacters()).thenReturn(List.of());
-        when(lobbyManager.getPlayers()).thenReturn(List.of(new Player("other")));
         when(lobbyManager.getGame()).thenReturn(game);
         when(game.isRunning()).thenReturn(true);
-        when(game.getGameId()).thenReturn("game-1");
-        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
-        when(game.getPlayers()).thenReturn(List.of());
+        when(lobbyManager.isPlayerInGame("ghost")).thenReturn(true);
         when(game.getTurnManager()).thenReturn(turnManager);
+        when(turnManager.getCurrentPlayerId()).thenReturn(0);
+        when(turnManager.getCurrentPlayerId(anyList())).thenReturn(null);
         when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
-        when(turnManager.getCurrentPlayerId(game.getPlayers())).thenReturn("");
+        when(game.getPlayers()).thenReturn(List.of());
 
         ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"ghost\"}"));
 
-        assertEquals(LobbyMessageType.PLAYER_REJOINED_RUNNING.toString(), response.get("type").asText());
+        assertEquals(LobbyMessageType.PLAYER_REJOINED_RUNNING.toString(), response.get("type").textValue());
+        assertEquals("RUNNING", response.get("payload").get("gameStatus").textValue());
+        assertFalse(response.get("payload").has("myCards"));
         assertFalse(response.get("payload").has("myCharacter"));
-        assertEquals(0, response.get("payload").get("myCards").size());
-        assertFalse(response.get("payload").get("isEliminated").asBoolean());
-    }
 
+        verify(eventListener).onPlayerRejoined("ghost");
+    }
     @Test
     void rejoinedLobbyPlayerWithCharacterDoesNotReceiveAvailableCharactersAgain() throws Exception {
         Player rejoined = new Player("player1");
@@ -917,7 +928,7 @@ class GameServerTest {
 
         ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"player1\"}"));
 
-        assertEquals(LobbyMessageType.PLAYER_REJOINED.toString(), response.get("type").asText());
+        assertEquals(LobbyMessageType.PLAYER_REJOINED.toString(), response.get("type").textValue());
         assertTrue(response.get("payload").has("availableCharacters"));
     }
 
@@ -936,7 +947,7 @@ class GameServerTest {
 
         ObjectNode response = gameServer.startGame(mapper.readTree("{}"));
 
-        assertEquals(LobbyMessageType.GAME_STARTED.toString(), response.get("type").asText());
+        assertEquals(LobbyMessageType.GAME_STARTED.toString(), response.get("type").textValue());
         assertEquals(0, response.get("payload").get("players").get(0).get("cards").size());
         verify(game).start();
         verify(dbService).saveGame(game);
@@ -952,8 +963,8 @@ class GameServerTest {
 
         ObjectNode response = gameServer.endTurn(mapper.readTree("{}"));
 
-        assertEquals("END_TURN_ERROR", response.get("type").asText());
-        assertEquals("nope", response.get("payload").get("reason").asText());
+        assertEquals("END_TURN_ERROR", response.get("type").textValue());
+        assertEquals("nope", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -962,8 +973,8 @@ class GameServerTest {
 
         ObjectNode response = gameServer.rollDice(mapper.readTree("{\"playerId\":\"player1\"}"));
 
-        assertEquals("ROLL_DICE_ERROR", response.get("type").asText());
-        assertTrue(response.get("payload").get("reason").asText().contains("db down"));
+        assertEquals("ROLL_DICE_ERROR", response.get("type").textValue());
+        assertTrue(response.get("payload").get("reason").textValue().contains("db down"));
     }
 
     @Test
@@ -975,8 +986,8 @@ class GameServerTest {
 
         ObjectNode response = gameServer.rollDice(mapper.readTree("{\"playerId\":\"player1\"}"));
 
-        assertEquals("ROLL_DICE_ERROR", response.get("type").asText());
-        assertEquals("It is not your turn", response.get("payload").get("reason").asText());
+        assertEquals("ROLL_DICE_ERROR", response.get("type").textValue());
+        assertEquals("It is not your turn", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -998,7 +1009,7 @@ class GameServerTest {
 
         ObjectNode response = gameServer.move(mapper.readTree("{\"playerId\":\"player1\",\"position\":\"NOT_A_ROOM\"}"));
 
-        assertEquals(GameMessageType.MOVE.toString(), response.get("type").asText());
+        assertEquals(GameMessageType.MOVE.toString(), response.get("type").textValue());
         assertEquals(0, player.getCurrentPosition().getX());
         assertEquals(0, player.getCurrentPosition().getY());
         verify(turnManager).decrementMove(false);
@@ -1012,16 +1023,16 @@ class GameServerTest {
 
         ObjectNode response = gameServer.enterRoom(mapper.readTree("{\"playerId\":\"missing\",\"roomId\":\"KITCHEN\"}"));
 
-        assertEquals("ENTER_ROOM_ERROR", response.get("type").asText());
-        assertEquals("Player not found", response.get("payload").get("reason").asText());
+        assertEquals("ENTER_ROOM_ERROR", response.get("type").textValue());
+        assertEquals("Player not found", response.get("payload").get("reason").textValue());
     }
 
     @Test
     void takeHiddenWayReturnsGenericErrorWhenPayloadMissesPlayerId() throws Exception {
         ObjectNode response = gameServer.takeHiddenWay(mapper.readTree("{}"));
 
-        assertEquals("HIDDEN_WAY_ERROR", response.get("type").asText());
-        assertTrue(response.get("payload").get("reason").asText().startsWith("Error taking hidden way:"));
+        assertEquals("HIDDEN_WAY_ERROR", response.get("type").textValue());
+        assertTrue(response.get("payload").get("reason").textValue().startsWith("Error taking hidden way:"));
     }
 
     @Test
@@ -1032,16 +1043,16 @@ class GameServerTest {
 
         ObjectNode response = gameServer.handleAccusation(mapper.readTree("{\"accuserID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
 
-        assertEquals("ACCUSATION_ERROR", response.get("type").asText());
-        assertEquals("Game is not running", response.get("payload").get("reason").asText());
+        assertEquals("ACCUSATION_ERROR", response.get("type").textValue());
+        assertEquals("Game is not running", response.get("payload").get("reason").textValue());
     }
 
     @Test
     void handleAccusationReturnsGenericErrorWhenPayloadFieldMissing() throws Exception {
         ObjectNode response = gameServer.handleAccusation(mapper.readTree("{\"accuserID\":\"player1\"}"));
 
-        assertEquals("ACCUSATION_ERROR", response.get("type").asText());
-        assertTrue(response.get("payload").get("reason").asText().startsWith("Error processing accusation:"));
+        assertEquals("ACCUSATION_ERROR", response.get("type").textValue());
+        assertTrue(response.get("payload").get("reason").textValue().startsWith("Error processing accusation:"));
     }
 
     @Test
@@ -1056,8 +1067,8 @@ class GameServerTest {
 
         ObjectNode response = gameServer.handleSuggestion(mapper.readTree("{\"suggesterID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
 
-        assertEquals(GameMessageType.SUGGESTION_ERROR.toString(), response.get("type").asText());
-        assertEquals("Eliminated players cannot make suggestions", response.get("payload").get("reason").asText());
+        assertEquals(GameMessageType.SUGGESTION_ERROR.toString(), response.get("type").textValue());
+        assertEquals("Eliminated players cannot make suggestions", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -1073,8 +1084,8 @@ class GameServerTest {
 
         ObjectNode response = gameServer.handleSuggestion(mapper.readTree("{\"suggesterID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
 
-        assertEquals(GameMessageType.SUGGESTION_RESULT.toString(), response.get("type").asText());
-        assertEquals("", response.get("payload").get("responderID").asText());
+        assertEquals(GameMessageType.SUGGESTION_RESULT.toString(), response.get("type").textValue());
+        assertEquals("", response.get("payload").get("responderID").textValue());
         assertEquals(0, response.get("payload").get("matchingCards").size());
     }
 

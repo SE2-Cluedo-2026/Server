@@ -32,7 +32,6 @@ public class Game {
         this.deck = new Deck();
     }
 
-    // only for testing
     public void resetGame() {
         this.status = GameStatus.LOBBY;
         this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
@@ -94,8 +93,8 @@ public class Game {
         if(this.status != GameStatus.LOBBY){
             throw new IllegalStateException("Game can only be started from lobby");
         }
-        if(players.size() != 4){
-            throw new IllegalStateException("Game needs exactly 4 players");
+        if(players.size() < 2 || players.size() > 4){
+            throw new IllegalStateException("Game needs between 2 and 4 players");
         }
         this.status = GameStatus.RUNNING;
         this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
@@ -115,8 +114,6 @@ public class Game {
     }
 
     public void abort() {
-        //this.status = GameStatus.ABORTED;
-
         if (this.caseFile != null) {
             this.caseFile.clear();
         }
@@ -141,11 +138,9 @@ public class Game {
     }
 
     public void makeSuggestion() {
-        // TODO
     }
 
     public void makeAccusation() {
-        // TODO
     }
     public Player getCurrentPlayer() {
         return turnManager.getCurrentPlayer(players);
@@ -201,5 +196,9 @@ public class Game {
         this.currentPhase = currentPhase;
         this.players = players;
         this.caseFile = caseFile;
+    }
+
+    public void restorePlayers(List<Player> players) {
+        this.players = players;
     }
 }

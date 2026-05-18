@@ -87,6 +87,10 @@ public class TurnManager {
         }
     }
 
+    public void setPhaseWaitingForMove() {
+        this.phase = TurnPhase.WAITING_FOR_MOVE;
+    }
+
     public void enterRoom() {
         this.movesRemaining = 0;
         this.phase = TurnPhase.IN_ROOM;

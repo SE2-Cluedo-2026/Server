@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 public class LobbyManager {
-    // uses GameInstance
     private final Game game = Game.getINSTANCE();
 
     public boolean leaveLobby(String playerId) {
@@ -21,7 +20,7 @@ public class LobbyManager {
 
     public boolean addPlayer(String playerKey) {
         if (game.getStatus() == GameStatus.RUNNING) {
-            return false; // false = nicht neu = Rejoin
+            return false;
         }
         if (game.getStatus() != GameStatus.LOBBY) {
             return false;
@@ -47,7 +46,6 @@ public class LobbyManager {
     }
 
     public void joinLobby() {
-        //TODO:
     }
 
     public boolean setCharacterTypeAndStatusReady(String playerId, CharacterType characterType) {
@@ -63,7 +61,8 @@ public class LobbyManager {
 
     public boolean canStartGame() {
         return game.getStatus() == GameStatus.LOBBY
-                && game.getPlayers().size() == 4
+                && game.getPlayers().size() >= 2
+                && game.getPlayers().size() <= 4
                 && game.getPlayers().stream().allMatch(Player::isReady);
     }
     public boolean isPlayerInGame(String playerId) {
