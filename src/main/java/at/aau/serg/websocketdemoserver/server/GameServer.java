@@ -63,15 +63,22 @@ public class GameServer {
             System.out.println("[JoinLobby] RUNNING Rejoin erkannt!");
             eventListener.onPlayerRejoined(playerKey);
 
-            response.put("type", LobbyMessageType.PLAYER_REJOINED.toString());
+            // Use PLAYER_REJOINED_RUNNING so the frontend uses the correct handler
+            // that populates all ClientState fields needed for board restoration
+            response.put("type", LobbyMessageType.PLAYER_REJOINED_RUNNING.toString());
             responsePayload.put("playerId", playerKey);
             responsePayload.put("gameStatus", "RUNNING");
-            responsePayload.put("currentPlayerId", game.getTurnManager().getCurrentPlayerId());
+            responsePayload.put("currentPlayerId",
+                    game.getTurnManager().getCurrentPlayerId(game.getPlayers()));
+            responsePayload.put("currentPlayerIndex",
+                    game.getTurnManager().getCurrentPlayerId());
             responsePayload.put("currentPhase", game.getCurrentPhase().toString());
+            responsePayload.put("remainingMoves", game.getTurnManager().getMovesRemaining());
 
             Player rejoinedPlayer = findPlayer(game, playerKey);
             if (rejoinedPlayer != null) {
-                responsePayload.put("characterType", rejoinedPlayer.getCharacter().toString());
+                responsePayload.put("myCharacter", rejoinedPlayer.getCharacter().toString());
+                responsePayload.put("isEliminated", rejoinedPlayer.isEliminated());
                 ArrayNode cardsArray = mapper.createArrayNode();
                 if (rejoinedPlayer.getCards() != null) {
                     for (Card c : rejoinedPlayer.getCards()) {
@@ -85,19 +92,48 @@ public class GameServer {
                 responsePayload.set("myCards", cardsArray);
             }
 
+            // Full player list with positions, characters, ready states
             ArrayNode playersArray = mapper.createArrayNode();
             for (Player p : game.getPlayers()) {
                 ObjectNode playerNode = mapper.createObjectNode();
                 playerNode.put("playerId", p.getPlayerId());
                 playerNode.put("characterType", p.getCharacter() != null ? p.getCharacter().toString() : "");
+                playerNode.put("ready", p.isReady());
                 playerNode.put("eliminated", p.isEliminated());
                 if (p.getCurrentPosition() != null) {
-                    playerNode.put("position", p.getCurrentPosition().toString());
+                    playerNode.put("position", positionToString(p.getCurrentPosition()));
                 }
                 playersArray.add(playerNode);
             }
             responsePayload.set("players", playersArray);
             responsePayload.set("existingPlayers", playersArray);
+
+            // playerPositions map: playerId → position string
+            ObjectNode positionsNode = mapper.createObjectNode();
+            for (Player p : game.getPlayers()) {
+                if (p.getCurrentPosition() != null) {
+                    positionsNode.put(p.getPlayerId(), positionToString(p.getCurrentPosition()));
+                }
+            }
+            responsePayload.set("playerPositions", positionsNode);
+
+            // playerCharacterMap: playerId → characterType string
+            ObjectNode charMapNode = mapper.createObjectNode();
+            for (Player p : game.getPlayers()) {
+                if (p.getCharacter() != null) {
+                    charMapNode.put(p.getPlayerId(), p.getCharacter().toString());
+                }
+            }
+            responsePayload.set("playerCharacterMap", charMapNode);
+
+            // eliminatedPlayers array
+            ArrayNode eliminatedArray = mapper.createArrayNode();
+            for (Player p : game.getPlayers()) {
+                if (p.isEliminated()) {
+                    eliminatedArray.add(p.getPlayerId());
+                }
+            }
+            responsePayload.set("eliminatedPlayers", eliminatedArray);
 
             response.set("payload", responsePayload);
             return response;
@@ -136,6 +172,8 @@ public class GameServer {
 
         if (playerIsNew) {
             response.put("type", LobbyMessageType.NEW_PLAYER_JOINED.toString());
+            // Bug 4 fix: persist the new player so DB is consistent with in-memory state
+            dbService.saveGame(lobbyManager.getGame());
         } else {
             response.put("type", LobbyMessageType.PLAYER_REJOINED.toString());
             responsePayload.put("gameStatus", "LOBBY");
@@ -149,242 +187,32 @@ public class GameServer {
         return response;
     }
 
-    /*
+    public ObjectNode leaveLobby(JsonNode payload) {
+        String playerId = payload.get("playerId").asText();
+        
+        Game game = lobbyManager.getGame();
+        
+        ObjectNode response = mapper.createObjectNode();
+        ObjectNode responsePayload = mapper.createObjectNode();
+        responsePayload.put("playerId", playerId);
 
-     public ObjectNode joinLobby(JsonNode payload) {
-
-        String playerKey = payload.get("playerKey").asText();
-        System.out.println("[JoinLobby] playerKey: " + playerKey);                    // ← NEU
-        System.out.println("[JoinLobby] game.isRunning(): " + lobbyManager.getGame().isRunning()); // ← NEU
-        System.out.println("[JoinLobby] playerIsNew: wird gleich berechnet...");      // ← NEU
-
-      //  ObjectNode response = mapper.createObjectNode();
-      //  ObjectNode responsePayload = mapper.createObjectNode();
-
-
-      //  if (lobbyManager.isGameFull()) {
-           // response.put("type", LobbyMessageType.GAME_FULL.toString());
-          //  responsePayload.put("playerId", playerKey);
-         /*   responsePayload.put("message", "Lobby is full");
-          //  response.set("payload", responsePayload);
-             return response;
-         }
-
-         boolean playerIsNew = lobbyManager.addPlayer(playerKey);
-         responsePayload.put("playerId", playerKey);
-
- // ---------------- availableCharacters ----------------------------------------------------
-         ArrayNode availableCharacters = mapper.createArrayNode();
-         for (CharacterType c : lobbyManager.getAvailableCharacters()) {
-             availableCharacters.add(c.toString());
-         }
-         responsePayload.set("availableCharacters", availableCharacters);
-
-
- // ---------------- existingPlayers----------------------------------------- ----------------
-         ArrayNode existingPlayers = mapper.createArrayNode();
-         for (Player p : lobbyManager.getPlayers()) {
-             ObjectNode playerNode = mapper.createObjectNode();
-             playerNode.put("playerId", p.getPlayerId());
-             playerNode.put("ready", p.isReady());
-
-             if (p.getCharacter() != null) {
-                 playerNode.put("characterType", p.getCharacter().toString());
-             }
-
-             existingPlayers.add(playerNode);
-        }
-        responsePayload.set("existingPlayers", existingPlayers);
-
-        if (playerIsNew) {
-            response.put("type", LobbyMessageType.NEW_PLAYER_JOINED.toString());
-            //dbService.saveGame(lobbyManager.getGame());
-        } else {
-            response.put("type", LobbyMessageType.PLAYER_REJOINED.toString());
-
-            Game game = lobbyManager.getGame();
-
-            // RUNNING Rejoin
-            if (game.isRunning()) {
-                eventListener.onPlayerRejoined(playerKey); // ← Timer stoppen + CONTINUE senden
-
-                responsePayload.put("gameStatus", "RUNNING");
-                responsePayload.put("currentPlayerId",
-                        game.getTurnManager().getCurrentPlayerId());
-                responsePayload.put("currentPhase",
-                        game.getCurrentPhase().toString());
-
-                // Eigene Cards
-                Player rejoinedPlayer = findPlayer(game, playerKey);
-                if (rejoinedPlayer != null) {
-                    responsePayload.put("characterType",
-                            rejoinedPlayer.getCharacter().toString());
-
-                    ArrayNode cardsArray = mapper.createArrayNode();
-                    if (rejoinedPlayer.getCards() != null) {
-                        for (Card c : rejoinedPlayer.getCards()) {
-                            ObjectNode cardNode = mapper.createObjectNode();
-                            cardNode.put("cardId", c.getCardId());
-                            cardNode.put("name", c.getName());
-                            cardNode.put("type", c.getClass().getSimpleName());
-                            cardsArray.add(cardNode);
-                        }
-                    }
-                    responsePayload.set("myCards", cardsArray);
-                }
-
-                // Alle Spieler + Positionen
-                ArrayNode playersArray = mapper.createArrayNode();
-                for (Player p : game.getPlayers()) {
-                    ObjectNode playerNode = mapper.createObjectNode();
-                    playerNode.put("playerId", p.getPlayerId());
-                    playerNode.put("characterType",
-                            p.getCharacter() != null ? p.getCharacter().toString() : "");
-                    playerNode.put("eliminated", p.isEliminated());
-                    if (p.getCurrentPosition() != null) {
-                        playerNode.put("position", p.getCurrentPosition().toString());
-                    }
-                    playersArray.add(playerNode);
-                }
-                responsePayload.set("players", playersArray);
-
-            } else {
-                // LOBBY Rejoin wie bisher
-                responsePayload.put("gameStatus", "LOBBY");
-                Player rejoinedPlayer = findPlayer(game, playerKey);
-                if (rejoinedPlayer != null && rejoinedPlayer.getCharacter() == null) {
-                    responsePayload.set("availableCharacters", availableCharacters);
-                }
-            }
-
-           /* Player rejoinedPlayer = null;
-            for (Player p : lobbyManager.getPlayers()) {
-                if (p.getPlayerId().equals(playerKey)) {
-                    rejoinedPlayer = p;
-                    break;
-            dbService.saveGame(lobbyManager.getGame());
+        // If the game is already running, we do NOT remove the player completely.
+        // We want to allow them to rejoin within 30 seconds.
+        // The client will disconnect immediately after this, which triggers the
+        // WebSocketEventListener.handleDisconnect() logic (GAME_PAUSED + timer).
+        if (game.isRunning() && game.playerAlreadyJoined(playerId)) {
+            response.put("type", LobbyMessageType.PLAYER_REMOVED.toString());
             response.set("payload", responsePayload);
             return response;
         }
 
-        Game game = lobbyManager.getGame();
-        Player rejoinedPlayer = null;
-        for (Player p : lobbyManager.getPlayers()) {
-            if (p.getPlayerId().equals(playerKey)) {
-                rejoinedPlayer = p;
-                break;
-            }
-        }
-
-        if (game.isRunning()) {
-            response.put("type", LobbyMessageType.PLAYER_REJOINED_RUNNING.toString());
-            ObjectNode runningPayload = mapper.createObjectNode();
-
-            runningPayload.put("playerId", playerKey);
-
-            runningPayload.put("gameId", game.getGameId());
-            runningPayload.put("gameStatus", game.getStatus().toString());
-
-            if (rejoinedPlayer != null && rejoinedPlayer.getCharacter() != null) {
-                runningPayload.put("myCharacter", rejoinedPlayer.getCharacter().toString());
-            }
-
-            ArrayNode myCards = mapper.createArrayNode();
-            if (rejoinedPlayer != null && rejoinedPlayer.getCards() != null) {
-                for (Card c : rejoinedPlayer.getCards()) {
-                    ObjectNode cardNode = mapper.createObjectNode();
-                    cardNode.put("cardId", c.getCardId());
-                    cardNode.put("name", c.getName());
-                    cardNode.put("type", c.getClass().getSimpleName());
-                    myCards.add(cardNode);
-                }
-            }
-            runningPayload.set("myCards", myCards);
-
-            runningPayload.put("isEliminated",
-                    rejoinedPlayer != null && rejoinedPlayer.isEliminated());
-
-            ArrayNode playersArray = mapper.createArrayNode();
-            ObjectNode playerPositions = mapper.createObjectNode();
-            ObjectNode playerCharacterMap = mapper.createObjectNode();
-            ArrayNode eliminatedPlayers = mapper.createArrayNode();
-
-            for (Player p : game.getPlayers()) {
-                ObjectNode playerNode = mapper.createObjectNode();
-                playerNode.put("playerId", p.getPlayerId());
-                playerNode.put("ready", p.isReady());
-                playerNode.put("eliminated", p.isEliminated());
-
-                if (p.getCharacter() != null) {
-                    playerNode.put("characterType", p.getCharacter().toString());
-                    playerCharacterMap.put(p.getPlayerId(), p.getCharacter().toString());
-                }
-
-                if (p.getCurrentPosition() != null) {
-                    String posStr = positionToString(p.getCurrentPosition());
-                    playerNode.put("position", posStr);
-                    playerPositions.put(p.getPlayerId(), posStr);
-                }
-
-                if (p.isEliminated()) {
-                    eliminatedPlayers.add(p.getPlayerId());
-                }
-
-                playersArray.add(playerNode);
-            }
-
-            runningPayload.set("players", playersArray);
-            runningPayload.set("playerPositions", playerPositions);
-            runningPayload.set("playerCharacterMap", playerCharacterMap);
-            runningPayload.set("eliminatedPlayers", eliminatedPlayers);
-
-            // TurnManager state
-            runningPayload.put("currentPlayerId",
-                    game.getTurnManager().getCurrentPlayerId(game.getPlayers()));
-            runningPayload.put("currentPlayerIndex",
-                    game.getTurnManager().getCurrentPlayerId());
-            runningPayload.put("currentPhase",
-                    game.getCurrentPhase().toString());
-            runningPayload.put("diceValue",
-                    game.getTurnManager().getDiceValue());
-            runningPayload.put("remainingMoves",
-                    game.getTurnManager().getMovesRemaining());
-
-            response.set("payload", runningPayload);
-
-        } else {
-            response.put("type", LobbyMessageType.PLAYER_REJOINED.toString());
-            if (rejoinedPlayer != null && rejoinedPlayer.getCharacter() == null) {
-                responsePayload.set("availableCharacters", availableCharacters);
-            }
-            response.set("payload", responsePayload);
-        }
-
-        return response;
-            */
-
-/*
-        }
-        response.set("payload", responsePayload);
-        return response;
-    }
-
-
-     */
-
-    public ObjectNode leaveLobby(JsonNode payload) {
-        String playerId = payload.get("playerId").asText();
         boolean removed = lobbyManager.leaveLobby(playerId);
-
-        ObjectNode response = mapper.createObjectNode();
-        ObjectNode responsePayload = mapper.createObjectNode();
-        responsePayload.put("playerId",playerId);
 
         if(removed) {
             dbService.removePlayer(playerId);
             response.put("type", LobbyMessageType.PLAYER_REMOVED.toString());
         } else {
-            response.put("type", "LEAVE_ERROR");
+            response.put("type", LobbyMessageType.LEAVE_ERROR.toString());
         }
         response.set("payload", responsePayload);
         return response;
@@ -429,11 +257,11 @@ public class GameServer {
                 responsePayload.set("existingPlayers", existingPlayers);
 
             } else {
-                response.put("type", "SET_READY_ERROR");
+                response.put("type", LobbyMessageType.SET_READY_ERROR.toString());
                 responsePayload.put("reason", "Player not found");
             }
         } catch (IllegalArgumentException e) {
-            response.put("type", "SET_READY_ERROR");
+            response.put("type", LobbyMessageType.SET_READY_ERROR.toString());
             responsePayload.put("reason", "Invalid character type");
         }
 
@@ -556,6 +384,36 @@ public class GameServer {
             cancelScheduledEndTurn(game.getGameId());
         }
     }
+
+    /**
+     * After GAME_FINISHED, reset the game back to LOBBY after a delay
+     * so all clients see the winner screen first, then get navigated back.
+     */
+    private void scheduleGameReset(int delaySeconds) {
+        scheduler.schedule(() -> {
+            try {
+                Game game = lobbyManager.getGame();
+                if (game == null) return;
+
+                game.abort(); // resets status to LOBBY, clears cards/positions/characters
+                dbService.updateGameStatus(game.getStatus().toString(), game.getCurrentPhase().toString());
+
+                ObjectNode abortMsg = mapper.createObjectNode();
+                ObjectNode abortPayload = mapper.createObjectNode();
+                abortMsg.put("type", GameMessageType.GAME_ABORTED.toString());
+                abortPayload.put("reason", "Game finished — returning to lobby");
+                addLobbyResetPayload(abortPayload, game);
+                abortMsg.set("payload", abortPayload);
+
+                if (messagingTemplate != null) {
+                    messagingTemplate.convertAndSend("/topic/game-response", abortMsg);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }, delaySeconds, TimeUnit.SECONDS);
+    }
+
     public ObjectNode endTurn(JsonNode payload) {
         cancelScheduledEndTurn();
         ObjectNode response = mapper.createObjectNode();
@@ -686,6 +544,13 @@ public class GameServer {
                     Field field = game.getBoard().getFields()[pos.getX()][pos.getY()];
                     if (field.getFieldType() == FieldType.HALLWAY_FIELD) {
                         scheduleAutoEndTurn(0);
+                    } else if (field.getFieldType() == FieldType.DOOR_FIELD) {
+                        // Player landed on a door with 0 moves left — keep phase
+                        // as WAITING_FOR_MOVE so they can still enter the room.
+                        // If they don't enter, the frontend can end the turn manually,
+                        // or we schedule a delayed auto-end as fallback.
+                        game.getTurnManager().setPhaseWaitingForMove();
+                        scheduleAutoEndTurn(15);
                     }
                 }
             }
@@ -867,6 +732,9 @@ public class GameServer {
                 dbService.updateGameStatus(game.getStatus().toString(), game.getCurrentPhase().toString());
                 response.put("type", GameMessageType.GAME_FINISHED.toString());
                 responsePayload.put("winner", accuserID);
+
+                // After showing the winner, schedule a reset back to lobby
+                scheduleGameReset(5);
             } else {
                 accuser.eliminate();
                 dbService.updatePlayerFlags(accuserID, accuser.isEliminated(), accuser.isCheatUsed(),
