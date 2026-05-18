@@ -1,12 +1,17 @@
 package at.aau.serg.websocketdemoserver.server;
 
+import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
-import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -18,6 +23,11 @@ public class ServerStartupService implements CommandLineRunner {
 
     @Autowired
     private DatabaseService dbService;
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
+
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @Override
     public void run(String... args) {
@@ -31,34 +41,66 @@ public class ServerStartupService implements CommandLineRunner {
             if ("RUNNING".equals(status)) {
                 System.out.println("[ServerStartup] RUNNING game found in DB – restoring state...");
                 dbService.loadFullGame();
+                // loadFullGame sets all players to active=false (no one is connected yet)
                 System.out.println("[ServerStartup] Game state restored. Starting 60s rejoin timer...");
-
-                Set<String> expectedIds = dbService.loadPlayerIds();
 
                 ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
                 scheduler.schedule(() -> {
                     Game game = Game.getINSTANCE();
                     if (game.isRunning()) {
-                        Set<String> connectedIds = game.getPlayers().stream()
+                        // Fix 2: Check active flag — only players who sent JOIN_LOBBY
+                        // after the restart have active=true
+                        Set<String> missingIds = game.getPlayers().stream()
+                                .filter(p -> !p.isActive())
                                 .map(Player::getPlayerId)
                                 .collect(Collectors.toSet());
-
-                        Set<String> missingIds = new HashSet<>(expectedIds);
-                        missingIds.removeAll(connectedIds);
 
                         if (!missingIds.isEmpty()) {
                             System.out.println("[ServerStartup] Rejoin timer expired – missing players: " + missingIds);
                             System.out.println("[ServerStartup] Aborting game.");
+
+                            // Fix 5: Remove disconnected players before abort
+                            List<Player> disconnected = game.getPlayers().stream()
+                                    .filter(p -> !p.isActive())
+                                    .collect(Collectors.toList());
+                            for (Player p : disconnected) {
+                                dbService.removePlayer(p.getPlayerId());
+                            }
+                            game.getPlayers().removeAll(disconnected);
+
                             game.abort();
                             dbService.updateGameStatus(
                                     game.getStatus().toString(),
                                     game.getCurrentPhase().toString()
                             );
 
-                            // TODO: send ABORTED Message to connected clients
+                            // Fix 3: Send GAME_ABORTED to connected clients
+                            ObjectNode abortMsg = mapper.createObjectNode();
+                            ObjectNode abortPayload = mapper.createObjectNode();
+                            abortMsg.put("type", "GAME_ABORTED");
+                            abortPayload.put("reason",
+                                    "Not all players rejoined after server restart");
+                            abortPayload.put("status", game.getStatus().toString());
+                            abortPayload.put("currentPhase", game.getCurrentPhase().toString());
 
-                            // TODO: after 5 Seconds set Game to CurrentPhase LOBBY and reset the connected Players in the Game to not ready
-                            //       and clear their Character. Not connected characters should be removed.
+                            ArrayNode availableCharacters = mapper.createArrayNode();
+                            for (CharacterType c : game.getAvailableCharacters()) {
+                                availableCharacters.add(c.toString());
+                            }
+                            abortPayload.set("availableCharacters", availableCharacters);
+
+                            ArrayNode existingPlayers = mapper.createArrayNode();
+                            for (Player p : game.getPlayers()) {
+                                ObjectNode playerNode = mapper.createObjectNode();
+                                playerNode.put("playerId", p.getPlayerId());
+                                playerNode.put("ready", p.isReady());
+                                existingPlayers.add(playerNode);
+                            }
+                            abortPayload.set("existingPlayers", existingPlayers);
+
+                            abortMsg.set("payload", abortPayload);
+                            messagingTemplate.convertAndSend(
+                                    "/topic/game-response", abortMsg);
 
                         } else {
                             System.out.println("[ServerStartup] All players reconnected – continuing game.");

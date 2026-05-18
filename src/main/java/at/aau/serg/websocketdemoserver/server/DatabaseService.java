@@ -294,6 +294,9 @@ public class DatabaseService {
       p.setCheatUsed((Boolean) row.get("cheat_used"));
       p.setAccusationUsed((Boolean) row.get("accusation_used"));
 
+      // After a server restart no player is actually connected yet
+      p.setActive(false);
+
       // Restore position
       String posType = (String) row.get("position_type");
       if (posType != null) {

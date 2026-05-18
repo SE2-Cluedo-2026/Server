@@ -139,7 +139,16 @@ public class GameServer {
             return response;
         }
 
-        // SCHRITT 2: isGameFull prüfen
+        // SCHRITT 2: Block new players from joining a RUNNING game
+        if (game.isRunning()) {
+            response.put("type", LobbyMessageType.GAME_FULL.toString());
+            responsePayload.put("playerId", playerKey);
+            responsePayload.put("message", "A game is currently in progress");
+            response.set("payload", responsePayload);
+            return response;
+        }
+
+        // SCHRITT 3: isGameFull prüfen
         if (lobbyManager.isGameFull()) {
             response.put("type", LobbyMessageType.GAME_FULL.toString());
             responsePayload.put("playerId", playerKey);
@@ -148,7 +157,7 @@ public class GameServer {
             return response;
         }
 
-        // SCHRITT 3: Normaler Join/Rejoin in LOBBY
+        // SCHRITT 4: Normaler Join/Rejoin in LOBBY
         boolean playerIsNew = lobbyManager.addPlayer(playerKey);
         responsePayload.put("playerId", playerKey);
 
