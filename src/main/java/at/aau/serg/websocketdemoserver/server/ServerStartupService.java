@@ -58,7 +58,7 @@ public class ServerStartupService implements CommandLineRunner {
 
                             List<Player> disconnected = game.getPlayers().stream()
                                     .filter(p -> !p.isActive())
-                                    .collect(Collectors.toList());
+                                    .toList();
                             for (Player p : disconnected) {
                                 dbService.removePlayer(p.getPlayerId());
                             }

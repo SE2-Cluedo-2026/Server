@@ -131,7 +131,7 @@ public class ServerStartupServiceTest {
         }
     }
 
-    private void overrideDelayAndRun() throws Exception {
+    private void overrideDelayAndRun() {
         try (MockedStatic<java.util.concurrent.Executors> execMock =
                      mockStatic(java.util.concurrent.Executors.class)) {
 
