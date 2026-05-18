@@ -32,6 +32,8 @@ import at.aau.serg.websocketdemoserver.model.enums.WeaponType;
 import at.aau.serg.websocketdemoserver.model.game.Suggestion;
 import at.aau.serg.websocketdemoserver.model.game.SuggestionResolver;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 @Service
 @Component
@@ -363,7 +365,7 @@ public class GameServer {
                     messagingTemplate.convertAndSend("/topic/game-response", response);
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                Logger.getAnonymousLogger().log(Level.WARNING, "Error scheduling auto end turn", e);
             } finally {
                 scheduledEndTurns.remove(gameId);
             }
@@ -410,7 +412,7 @@ public class GameServer {
                     messagingTemplate.convertAndSend("/topic/game-response", abortMsg);
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                Logger.getAnonymousLogger().log(Level.WARNING, "Error scheduling game reset", e);
             }
         }, delaySeconds, TimeUnit.SECONDS);
     }

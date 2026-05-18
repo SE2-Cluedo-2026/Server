@@ -16,6 +16,8 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 @Service
@@ -113,7 +115,7 @@ public class ServerStartupService implements CommandLineRunner {
 
         } catch (Exception e) {
             System.err.println("[ServerStartup] Error during startup sync: " + e.getMessage());
-            e.printStackTrace();
+            Logger.getAnonymousLogger().log(Level.WARNING, "Error scheduling game reset", e);
         }
     }
 }

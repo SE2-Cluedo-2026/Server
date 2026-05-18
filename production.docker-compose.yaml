@@ -20,7 +20,7 @@ services:
 
   server:
     # build: .   # use image for deployment and build: . for local testing
-    image: ghcr.io/SE2-Cluedo-2026/Server:latest
+    image: ghcr.io/se2-cluedo-2026/server:latest
     restart: unless-stopped
     ports:
       - "53211:8080"
