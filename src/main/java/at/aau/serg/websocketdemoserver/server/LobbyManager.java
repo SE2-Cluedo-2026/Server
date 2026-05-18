@@ -63,7 +63,8 @@ public class LobbyManager {
 
     public boolean canStartGame() {
         return game.getStatus() == GameStatus.LOBBY
-                && game.getPlayers().size() == 4
+                && game.getPlayers().size() >= 2
+                && game.getPlayers().size() <= 4
                 && game.getPlayers().stream().allMatch(Player::isReady);
     }
     public boolean isPlayerInGame(String playerId) {

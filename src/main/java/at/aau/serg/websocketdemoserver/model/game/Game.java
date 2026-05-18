@@ -87,6 +87,7 @@ public class Game {
     }
 
     public boolean isGameFull() {
+        // Game supports 2-4 players; full at 4
         return players.size() >= 4;
     }
 
@@ -94,8 +95,8 @@ public class Game {
         if(this.status != GameStatus.LOBBY){
             throw new IllegalStateException("Game can only be started from lobby");
         }
-        if(players.size() != 4){
-            throw new IllegalStateException("Game needs exactly 4 players");
+        if(players.size() < 2 || players.size() > 4){
+            throw new IllegalStateException("Game needs between 2 and 4 players");
         }
         this.status = GameStatus.RUNNING;
         this.currentPhase = TurnPhase.WAITING_FOR_ROLL;
