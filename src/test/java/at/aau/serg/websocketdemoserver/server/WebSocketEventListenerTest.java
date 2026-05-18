@@ -60,4 +60,68 @@ class WebSocketEventListenerTest {
         assertEquals("player1", sessionToPlayer.get("sess1"));
         assertEquals("sess1", playerToSession.get("player1"));
     }
+    @Test
+    void handleDisconnectIgnoresUnknownSession() {
+        SessionDisconnectEvent event = createDisconnectEvent("unknown-session");
+
+        listener.handleDisconnect(event);
+
+        verifyNoInteractions(messagingTemplate);
+    }
+
+    @Test
+    void handleDisconnectIgnoresStaleSession() {
+        listener.registerSession("sess-old", "player1");
+        listener.registerSession("sess-new", "player1");
+
+        SessionDisconnectEvent event = createDisconnectEvent("sess-old");
+        listener.handleDisconnect(event);
+
+        verifyNoInteractions(messagingTemplate);
+    }
+
+    @Test
+    void handleDisconnectIgnoresWhenGameNotRunning() {
+        listener.registerSession("sess1", "player1");
+        game.addPlayer(new Player("player1"));
+
+        SessionDisconnectEvent event = createDisconnectEvent("sess1");
+        listener.handleDisconnect(event);
+
+        verifyNoInteractions(messagingTemplate);
+    }
+
+    @Test
+    void handleDisconnectSendsGamePausedAndStartsTimer() {
+        Player player1 = new Player("player1");
+        player1.setCharacter(CharacterType.MRS_PINK);
+        player1.setActive(true);
+        Player player2 = new Player("player2");
+        player2.setCharacter(CharacterType.DR_BLUE);
+        player2.setActive(true);
+
+        game.addPlayer(player1);
+        game.addPlayer(player2);
+        game.start();
+
+        listener.registerSession("sess1", "player1");
+
+        ScheduledExecutorService mockScheduler = mock(ScheduledExecutorService.class);
+        ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
+        doReturn(mockFuture).when(mockScheduler)
+                .schedule(any(Runnable.class), eq(30L), eq(TimeUnit.SECONDS));
+        ReflectionTestUtils.setField(listener, "scheduler", mockScheduler);
+
+        SessionDisconnectEvent event = createDisconnectEvent("sess1");
+        listener.handleDisconnect(event);
+
+        assertFalse(player1.isActive());
+
+        verify(messagingTemplate).convertAndSend(eq("/topic/game-response"), any(ObjectNode.class));
+
+        Map<String, ScheduledFuture<?>> timers = getDisconnectTimers();
+        assertSame(mockFuture, timers.get("player1"));
+    }
+
+
 }
