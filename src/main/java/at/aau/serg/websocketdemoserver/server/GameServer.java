@@ -289,7 +289,7 @@ public class GameServer {
         return response;
     }
 
-    public ObjectNode startGame(JsonNode payload) {
+    public ObjectNode startGame() {
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
 
@@ -371,8 +371,7 @@ public class GameServer {
                     return;
                 }
 
-                ObjectNode payload = mapper.createObjectNode();
-                ObjectNode response = endTurn(payload);
+                ObjectNode response = endTurn();
 
                 if (messagingTemplate != null) {
                     messagingTemplate.convertAndSend(TOPIC_GAME_RESPONSE, response);
@@ -430,7 +429,7 @@ public class GameServer {
         }, delaySeconds, TimeUnit.SECONDS);
     }
 
-    public ObjectNode endTurn(JsonNode payload) {
+    public ObjectNode endTurn() {
         cancelScheduledEndTurn();
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
@@ -554,15 +553,14 @@ public class GameServer {
                     game.getTurnManager().getPhase().toString()
             );
 
-            if (!isInRoom && game.getTurnManager().getMovesRemaining() == 0) {
-                if (pos.getPositionType() == PositionType.BOARD) {
-                    Field field = game.getBoard().getFields()[pos.getX()][pos.getY()];
-                    if (field.getFieldType() == FieldType.HALLWAY_FIELD) {
-                        scheduleAutoEndTurn(0);
-                    } else if (field.getFieldType() == FieldType.DOOR_FIELD) {
-                        game.getTurnManager().setPhaseWaitingForMove();
-                        scheduleAutoEndTurn(15);
-                    }
+            if (!isInRoom && game.getTurnManager().getMovesRemaining() == 0
+                    && pos.getPositionType() == PositionType.BOARD) {
+                Field field = game.getBoard().getFields()[pos.getX()][pos.getY()];
+                if (field.getFieldType() == FieldType.HALLWAY_FIELD) {
+                    scheduleAutoEndTurn(0);
+                } else if (field.getFieldType() == FieldType.DOOR_FIELD) {
+                    game.getTurnManager().setPhaseWaitingForMove();
+                    scheduleAutoEndTurn(15);
                 }
             }
 
