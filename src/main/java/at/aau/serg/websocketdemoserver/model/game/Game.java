@@ -162,7 +162,7 @@ public class Game {
 
         return Arrays.stream(CharacterType.values())
                 .filter(character -> !takenCharacters.contains(character))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public GameStatus getStatus() {
