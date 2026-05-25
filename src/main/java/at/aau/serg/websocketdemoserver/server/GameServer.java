@@ -41,6 +41,21 @@ public class GameServer {
     private static final String POSITION = "position";
     private static final String REASON = "reason";
     private static final String CURRENT_PLAYER_INDEX = "currentPlayerIndex";
+    private static final String AVAILABLE_CHARACTERS = "availableCharacters";
+    private static final String READY = "ready";
+    private static final String CHARACTER_TYPE = "characterType";
+    private static final String EXISTING_PLAYERS = "existingPlayers";
+    private static final String CURRENT_PHASE = "currentPhase";
+    private static final String CARD_ID = "cardId";
+    private static final String PLAYER_NOT_FOUND = "Player not found";
+    private static final String ROLL_DICE_ERROR = "ROLL_DICE_ERROR";
+    private static final String GAME_NOT_RUNNING = "Game is not running";
+    private static final String ENTER_ROOM_ERROR = "ENTER_ROOM_ERROR";
+    private static final String HIDDEN_WAY_ERROR = "HIDDEN_WAY_ERROR";
+    private static final String SUSPECT = "suspect";
+    private static final String WEAPON = "weapon";
+    private static final String ACCUSATION_ERROR = "ACCUSATION_ERROR";
+    private static final String TOPIC_GAME_RESPONSE = "/topic/game-response";
 
     private final DatabaseService dbService;
     private final SimpMessagingTemplate messagingTemplate;
@@ -96,19 +111,19 @@ public class GameServer {
         for (CharacterType c : lobbyManager.getAvailableCharacters()) {
             availableCharacters.add(c.toString());
         }
-        responsePayload.set("availableCharacters", availableCharacters);
+        responsePayload.set(AVAILABLE_CHARACTERS, availableCharacters);
 
         ArrayNode existingPlayers = mapper.createArrayNode();
         for (Player p : lobbyManager.getPlayers()) {
             ObjectNode playerNode = mapper.createObjectNode();
             playerNode.put(PLAYER_ID, p.getPlayerId());
-            playerNode.put("ready", p.isReady());
+            playerNode.put(READY, p.isReady());
             if (p.getCharacter() != null) {
-                playerNode.put("characterType", p.getCharacter().toString());
+                playerNode.put(CHARACTER_TYPE, p.getCharacter().toString());
             }
             existingPlayers.add(playerNode);
         }
-        responsePayload.set("existingPlayers", existingPlayers);
+        responsePayload.set(EXISTING_PLAYERS, existingPlayers);
 
         if (playerIsNew) {
             response.put("type", LobbyMessageType.NEW_PLAYER_JOINED.toString());
@@ -118,7 +133,7 @@ public class GameServer {
             responsePayload.put("gameStatus", "LOBBY");
             Player rejoinedPlayer = findPlayer(game, playerKey);
             if (rejoinedPlayer != null && rejoinedPlayer.getCharacter() == null) {
-                responsePayload.set("availableCharacters", availableCharacters);
+                responsePayload.set(AVAILABLE_CHARACTERS, availableCharacters);
             }
         }
 
@@ -134,7 +149,7 @@ public class GameServer {
                 game.getTurnManager().getCurrentPlayerId(game.getPlayers()));
         responsePayload.put(CURRENT_PLAYER_INDEX,
                 game.getTurnManager().getCurrentPlayerId());
-        responsePayload.put("currentPhase", game.getCurrentPhase().toString());
+        responsePayload.put(CURRENT_PHASE, game.getCurrentPhase().toString());
         responsePayload.put("remainingMoves", game.getTurnManager().getMovesRemaining());
 
         Player rejoinedPlayer = findPlayer(game, playerKey);
@@ -145,7 +160,7 @@ public class GameServer {
             if (rejoinedPlayer.getCards() != null) {
                 for (Card c : rejoinedPlayer.getCards()) {
                     ObjectNode cardNode = mapper.createObjectNode();
-                    cardNode.put("cardId", c.getCardId());
+                    cardNode.put(CARD_ID, c.getCardId());
                     cardNode.put("name", c.getName());
                     cardNode.put("type", c.getClass().getSimpleName());
                     cardsArray.add(cardNode);
@@ -158,8 +173,8 @@ public class GameServer {
         for (Player p : game.getPlayers()) {
             ObjectNode playerNode = mapper.createObjectNode();
             playerNode.put(PLAYER_ID, p.getPlayerId());
-            playerNode.put("characterType", p.getCharacter() != null ? p.getCharacter().toString() : "");
-            playerNode.put("ready", p.isReady());
+            playerNode.put(CHARACTER_TYPE, p.getCharacter() != null ? p.getCharacter().toString() : "");
+            playerNode.put(READY, p.isReady());
             playerNode.put("eliminated", p.isEliminated());
             if (p.getCurrentPosition() != null) {
                 playerNode.put(POSITION, positionToString(p.getCurrentPosition()));
@@ -167,7 +182,7 @@ public class GameServer {
             playersArray.add(playerNode);
         }
         responsePayload.set("players", playersArray);
-        responsePayload.set("existingPlayers", playersArray);
+        responsePayload.set(EXISTING_PLAYERS, playersArray);
 
         ObjectNode positionsNode = mapper.createObjectNode();
         for (Player p : game.getPlayers()) {
@@ -225,7 +240,7 @@ public class GameServer {
     }
     public ObjectNode setCharacterTypeAndStatusReady(JsonNode payload) {
         String playerId = payload.get(PLAYER_ID).asText();
-        String characterTypeString = payload.get("characterType").asText();
+        String characterTypeString = payload.get(CHARACTER_TYPE).asText();
 
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
@@ -240,29 +255,29 @@ public class GameServer {
                 response.put("type",
                         LobbyMessageType.SET_CHARACTER_TYPE_AND_STATUS_READY.toString());
                 responsePayload.put(PLAYER_ID, playerId);
-                responsePayload.put("characterType", characterType.toString());
-                responsePayload.put("ready", true);
+                responsePayload.put(CHARACTER_TYPE, characterType.toString());
+                responsePayload.put(READY, true);
                 ArrayNode availableCharacters = mapper.createArrayNode();
                 for (CharacterType c : lobbyManager.getAvailableCharacters()) {
                     availableCharacters.add(c.toString());
                 }
-                responsePayload.set("availableCharacters", availableCharacters);
+                responsePayload.set(AVAILABLE_CHARACTERS, availableCharacters);
 
                 ArrayNode existingPlayers = mapper.createArrayNode();
                 for (Player p : lobbyManager.getPlayers()) {
                     ObjectNode playerNode = mapper.createObjectNode();
                     playerNode.put(PLAYER_ID, p.getPlayerId());
-                    playerNode.put("ready", p.isReady());
+                    playerNode.put(READY, p.isReady());
                     if (p.getCharacter() != null) {
-                        playerNode.put("characterType", p.getCharacter().toString());
+                        playerNode.put(CHARACTER_TYPE, p.getCharacter().toString());
                     }
                     existingPlayers.add(playerNode);
                 }
-                responsePayload.set("existingPlayers", existingPlayers);
+                responsePayload.set(EXISTING_PLAYERS, existingPlayers);
 
             } else {
                 response.put("type", LobbyMessageType.SET_READY_ERROR.toString());
-                responsePayload.put(REASON, "Player not found");
+                responsePayload.put(REASON, PLAYER_NOT_FOUND);
             }
         } catch (IllegalArgumentException e) {
             response.put("type", LobbyMessageType.SET_READY_ERROR.toString());
@@ -285,7 +300,7 @@ public class GameServer {
             response.put("type", LobbyMessageType.GAME_STARTED.toString());
             responsePayload.put("gameId", game.getGameId());
             responsePayload.put("status", game.getStatus().toString());
-            responsePayload.put("currentPhase", game.getCurrentPhase().toString());
+            responsePayload.put(CURRENT_PHASE, game.getCurrentPhase().toString());
             responsePayload.put(CURRENT_PLAYER_INDEX, game.getTurnManager().getCurrentPlayerId());
 
             ArrayNode playersArray = mapper.createArrayNode();
@@ -299,7 +314,7 @@ public class GameServer {
                 if (p.getCards() != null) {
                     for (Card c : p.getCards()) {
                         ObjectNode cardNode = mapper.createObjectNode();
-                        cardNode.put("cardId", c.getCardId());
+                        cardNode.put(CARD_ID, c.getCardId());
                         cardNode.put("name", c.getName());
                         cardNode.put("type", c.getClass().getSimpleName());
 
@@ -359,7 +374,7 @@ public class GameServer {
                 ObjectNode response = endTurn(payload);
 
                 if (messagingTemplate != null) {
-                    messagingTemplate.convertAndSend("/topic/game-response", response);
+                    messagingTemplate.convertAndSend(TOPIC_GAME_RESPONSE, response);
                 }
             } catch (Exception e) {
                 Logger.getAnonymousLogger().log(Level.WARNING, "Error scheduling auto end turn", e);
@@ -406,7 +421,7 @@ public class GameServer {
                 abortMsg.set(PAYLOAD, abortPayload);
 
                 if (messagingTemplate != null) {
-                    messagingTemplate.convertAndSend("/topic/game-response", abortMsg);
+                    messagingTemplate.convertAndSend(TOPIC_GAME_RESPONSE, abortMsg);
                 }
             } catch (Exception e) {
                 Logger.getAnonymousLogger().log(Level.WARNING, "Error scheduling game reset", e);
@@ -431,7 +446,7 @@ public class GameServer {
 
             response.put("type", GameMessageType.END_TURN.toString());
             responsePayload.put("gameId", game.getGameId());
-            responsePayload.put("currentPhase", game.getCurrentPhase().toString());
+            responsePayload.put(CURRENT_PHASE, game.getCurrentPhase().toString());
             responsePayload.put(CURRENT_PLAYER_INDEX, game.getTurnManager().getCurrentPlayerId());
 
         } catch (IllegalStateException e) {
@@ -452,22 +467,22 @@ public class GameServer {
             Game game = lobbyManager.getGame();
 
             if (!game.isRunning()) {
-                response.put("type", "ROLL_DICE_ERROR");
-                responsePayload.put(REASON, "Game is not running");
+                response.put("type", ROLL_DICE_ERROR);
+                responsePayload.put(REASON, GAME_NOT_RUNNING);
                 response.set(PAYLOAD, responsePayload);
                 return response;
             }
 
             Player currentPlayer = game.getCurrentPlayer();
             if (currentPlayer == null || !currentPlayer.getPlayerId().equals(playerId)) {
-                response.put("type", "ROLL_DICE_ERROR");
+                response.put("type", ROLL_DICE_ERROR);
                 responsePayload.put(REASON, "It is not your turn");
                 response.set(PAYLOAD, responsePayload);
                 return response;
             }
 
             if (game.getTurnManager().getPhase() != TurnPhase.WAITING_FOR_ROLL) {
-                response.put("type", "ROLL_DICE_ERROR");
+                response.put("type", ROLL_DICE_ERROR);
                 responsePayload.put(REASON, "Not in roll phase");
                 response.set(PAYLOAD, responsePayload);
                 return response;
@@ -482,12 +497,12 @@ public class GameServer {
 
             responsePayload.put(PLAYER_ID, playerId);
             responsePayload.put("value", value);
-            responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
+            responsePayload.put(CURRENT_PHASE, game.getTurnManager().getPhase().toString());
 
             response.put("type", GameMessageType.ROLL_DICE.toString());
             response.set(PAYLOAD, responsePayload);
         } catch (Exception e) {
-            response.put("type", "ROLL_DICE_ERROR");
+            response.put("type", ROLL_DICE_ERROR);
             responsePayload.put(REASON, "Error processing roll dice: " + e.getMessage());
             response.set(PAYLOAD, responsePayload);
         }
@@ -507,7 +522,7 @@ public class GameServer {
             Player player = findPlayer(game, playerId);
             if (player == null) {
                 response.put("type", "MOVE_ERROR");
-                responsePayload.put(REASON, "Player not found");
+                responsePayload.put(REASON, PLAYER_NOT_FOUND);
                 response.set(PAYLOAD, responsePayload);
                 return response;
             }
@@ -553,7 +568,7 @@ public class GameServer {
             responsePayload.put(PLAYER_ID, playerId);
             responsePayload.put(POSITION, position);
             responsePayload.put("movesLeft", game.getTurnManager().getMovesRemaining());
-            responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
+            responsePayload.put(CURRENT_PHASE, game.getTurnManager().getPhase().toString());
 
             response.put("type", GameMessageType.MOVE.toString());
             response.set(PAYLOAD, responsePayload);
@@ -577,8 +592,8 @@ public class GameServer {
 
             Player player = findPlayer(game, playerId);
             if (player == null) {
-                response.put("type", "ENTER_ROOM_ERROR");
-                responsePayload.put(REASON, "Player not found");
+                response.put("type", ENTER_ROOM_ERROR);
+                responsePayload.put(REASON, PLAYER_NOT_FOUND);
                 response.set(PAYLOAD, responsePayload);
                 return response;
             }
@@ -599,16 +614,16 @@ public class GameServer {
 
             responsePayload.put(PLAYER_ID, playerId);
             responsePayload.put("roomId", roomId);
-            responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
+            responsePayload.put(CURRENT_PHASE, game.getTurnManager().getPhase().toString());
 
             response.put("type", GameMessageType.ENTER_ROOM.toString());
             response.set(PAYLOAD, responsePayload);
         } catch (IllegalArgumentException e) {
-            response.put("type", "ENTER_ROOM_ERROR");
+            response.put("type", ENTER_ROOM_ERROR);
             responsePayload.put(REASON, "Invalid room: " + e.getMessage());
             response.set(PAYLOAD, responsePayload);
         } catch (Exception e) {
-            response.put("type", "ENTER_ROOM_ERROR");
+            response.put("type", ENTER_ROOM_ERROR);
             responsePayload.put(REASON, "Error entering room: " + e.getMessage());
             response.set(PAYLOAD, responsePayload);
         }
@@ -632,8 +647,8 @@ public class GameServer {
 
             Player player = findPlayer(game, playerId);
             if (player == null) {
-                response.put("type", "HIDDEN_WAY_ERROR");
-                responsePayload.put(REASON, "Player not found");
+                response.put("type", HIDDEN_WAY_ERROR);
+                responsePayload.put(REASON, PLAYER_NOT_FOUND);
                 response.set(PAYLOAD, responsePayload);
                 return response;
             }
@@ -641,7 +656,7 @@ public class GameServer {
             Position currentPos = player.getCurrentPosition();
             if (currentPos == null
                     || currentPos.getPositionType() != at.aau.serg.websocketdemoserver.model.enums.PositionType.ROOM) {
-                response.put("type", "HIDDEN_WAY_ERROR");
+                response.put("type", HIDDEN_WAY_ERROR);
                 responsePayload.put(REASON, "Player is not in a room");
                 response.set(PAYLOAD, responsePayload);
                 return response;
@@ -651,7 +666,7 @@ public class GameServer {
             RoomType targetRoom = HIDDEN_PASSAGES.get(currentRoom);
 
             if (targetRoom == null) {
-                response.put("type", "HIDDEN_WAY_ERROR");
+                response.put("type", HIDDEN_WAY_ERROR);
                 responsePayload.put(REASON, "No hidden passage from this room");
                 response.set(PAYLOAD, responsePayload);
                 return response;
@@ -665,12 +680,12 @@ public class GameServer {
 
             responsePayload.put(PLAYER_ID, playerId);
             responsePayload.put("targetRoom", targetRoom.toString());
-            responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
+            responsePayload.put(CURRENT_PHASE, game.getTurnManager().getPhase().toString());
 
             response.put("type", GameMessageType.TAKE_HIDDEN_WAY.toString());
             response.set(PAYLOAD, responsePayload);
         } catch (Exception e) {
-            response.put("type", "HIDDEN_WAY_ERROR");
+            response.put("type", HIDDEN_WAY_ERROR);
             responsePayload.put(REASON, "Error taking hidden way: " + e.getMessage());
             response.set(PAYLOAD, responsePayload);
         }
@@ -684,29 +699,29 @@ public class GameServer {
 
         try {
             String accuserID = payload.get("accuserID").asText();
-            CharacterType suspect = CharacterType.valueOf(payload.get("suspect").asText());
+            CharacterType suspect = CharacterType.valueOf(payload.get(SUSPECT).asText());
             RoomType room = RoomType.valueOf(payload.get("room").asText());
-            WeaponType weapon = WeaponType.valueOf(payload.get("weapon").asText());
+            WeaponType weapon = WeaponType.valueOf(payload.get(WEAPON).asText());
 
             Game game = lobbyManager.getGame();
 
             if (!game.isRunning()) {
-                response.put("type", "ACCUSATION_ERROR");
-                responsePayload.put(REASON, "Game is not running");
+                response.put("type", ACCUSATION_ERROR);
+                responsePayload.put(REASON, GAME_NOT_RUNNING);
                 response.set(PAYLOAD, responsePayload);
                 return response;
             }
 
             Player accuser = findPlayer(game, accuserID);
             if (accuser == null) {
-                response.put("type", "ACCUSATION_ERROR");
+                response.put("type", ACCUSATION_ERROR);
                 responsePayload.put(REASON, "Accuser not found");
                 response.set(PAYLOAD, responsePayload);
                 return response;
             }
 
             if (accuser.isEliminated()) {
-                response.put("type", "ACCUSATION_ERROR");
+                response.put("type", ACCUSATION_ERROR);
                 responsePayload.put(REASON, "Eliminated players cannot make accusations");
                 response.set(PAYLOAD, responsePayload);
                 return response;
@@ -717,9 +732,9 @@ public class GameServer {
 
             responsePayload.put("gameID", game.getGameId());
             responsePayload.put("accuserID", accuserID);
-            responsePayload.put("suspect", suspect.toString());
+            responsePayload.put(SUSPECT, suspect.toString());
             responsePayload.put("room", room.toString());
-            responsePayload.put("weapon", weapon.toString());
+            responsePayload.put(WEAPON, weapon.toString());
             responsePayload.put("correct", correct);
 
             if (correct) {
@@ -752,11 +767,11 @@ public class GameServer {
 
             response.set(PAYLOAD, responsePayload);
         } catch (IllegalArgumentException e) {
-            response.put("type", "ACCUSATION_ERROR");
+            response.put("type", ACCUSATION_ERROR);
             responsePayload.put(REASON, "Invalid suspect, room or weapon");
             response.set(PAYLOAD, responsePayload);
         } catch (Exception e) {
-            response.put("type", "ACCUSATION_ERROR");
+            response.put("type", ACCUSATION_ERROR);
             responsePayload.put(REASON, "Error processing accusation: " + e.getMessage());
             response.set(PAYLOAD, responsePayload);
         }
@@ -772,15 +787,15 @@ public class GameServer {
 
         try {
             String suggesterID = payload.get("suggesterID").asText();
-            CharacterType suspect = CharacterType.valueOf(payload.get("suspect").asText());
+            CharacterType suspect = CharacterType.valueOf(payload.get(SUSPECT).asText());
             RoomType room = RoomType.valueOf(payload.get("room").asText());
-            WeaponType weapon = WeaponType.valueOf(payload.get("weapon").asText());
+            WeaponType weapon = WeaponType.valueOf(payload.get(WEAPON).asText());
 
             Game game = lobbyManager.getGame();
 
             if (!game.getStatus().toString().equals("RUNNING")) {
                 response.put("type", GameMessageType.SUGGESTION_ERROR.toString());
-                responsePayload.put(REASON, "Game is not running");
+                responsePayload.put(REASON, GAME_NOT_RUNNING);
                 response.set(PAYLOAD, responsePayload);
                 return response;
             }
@@ -816,9 +831,9 @@ public class GameServer {
             response.put("type", GameMessageType.SUGGESTION_RESULT.toString());
             responsePayload.put("gameID", game.getGameId());
             responsePayload.put("suggesterID", suggesterID);
-            responsePayload.put("suspect", suspect.toString());
+            responsePayload.put(SUSPECT, suspect.toString());
             responsePayload.put("room", room.toString());
-            responsePayload.put("weapon", weapon.toString());
+            responsePayload.put(WEAPON, weapon.toString());
 
             ArrayNode matchingCardsArray = mapper.createArrayNode();
 
@@ -827,7 +842,7 @@ public class GameServer {
 
                 for (Card card : suggestion.getMatchingCards()) {
                     ObjectNode cardNode = mapper.createObjectNode();
-                    cardNode.put("cardId", card.getCardId());
+                    cardNode.put(CARD_ID, card.getCardId());
                     cardNode.put("name", card.getName());
                     cardNode.put("type", card.getClass().getSimpleName());
                     cardNode.put("seen", true);
@@ -855,28 +870,28 @@ public class GameServer {
     }
     private void addLobbyResetPayload(ObjectNode responsePayload, Game game) {
         responsePayload.put("status", game.getStatus().toString());
-        responsePayload.put("currentPhase", game.getCurrentPhase().toString());
+        responsePayload.put(CURRENT_PHASE, game.getCurrentPhase().toString());
 
         ArrayNode availableCharacters = mapper.createArrayNode();
         for (CharacterType c : game.getAvailableCharacters()) {
             availableCharacters.add(c.toString());
         }
-        responsePayload.set("availableCharacters", availableCharacters);
+        responsePayload.set(AVAILABLE_CHARACTERS, availableCharacters);
 
         ArrayNode existingPlayers = mapper.createArrayNode();
         for (Player p : game.getPlayers()) {
             ObjectNode playerNode = mapper.createObjectNode();
             playerNode.put(PLAYER_ID, p.getPlayerId());
-            playerNode.put("ready", p.isReady());
+            playerNode.put(READY, p.isReady());
 
             if (p.getCharacter() != null) {
-                playerNode.put("characterType", p.getCharacter().toString());
+                playerNode.put(CHARACTER_TYPE, p.getCharacter().toString());
             }
 
             existingPlayers.add(playerNode);
         }
 
-        responsePayload.set("existingPlayers", existingPlayers);
+        responsePayload.set(EXISTING_PLAYERS, existingPlayers);
     }
 
     private Player findPlayer(Game game, String playerId) {
