@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -23,8 +22,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class DatabaseService {
   private static final String GAME_ID = "game1";
-  @Autowired
-  private JdbcTemplate jdbc;
+  private final JdbcTemplate jdbc;
+
+  public DatabaseService(JdbcTemplate jdbc) {
+    this.jdbc = jdbc;
+  }
 
   public void saveGame(Game game) {
     saveGameState(game);

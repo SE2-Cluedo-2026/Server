@@ -10,17 +10,17 @@ import at.aau.serg.websocketdemoserver.messaging.dtos.GameMessage;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Controller;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.Header;
 import at.aau.serg.websocketdemoserver.server.WebSocketEventListener;
 @Controller
 public class WebSocketBrokerController {
-    @Autowired
-    private GameServer gameServer;
+    private final GameServer gameServer;
+    private final WebSocketEventListener eventListener;
 
-    @Autowired
-    private WebSocketEventListener eventListener;
-
+    public WebSocketBrokerController(GameServer gameServer, WebSocketEventListener eventListener) {
+        this.gameServer = gameServer;
+        this.eventListener = eventListener;
+    }
 
     @MessageMapping("/lobby")
     @SendTo("/topic/lobby-response")

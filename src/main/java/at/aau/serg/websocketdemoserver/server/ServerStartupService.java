@@ -3,7 +3,6 @@ package at.aau.serg.websocketdemoserver.server;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -23,13 +22,14 @@ import java.util.stream.Collectors;
 @Service
 public class ServerStartupService implements CommandLineRunner {
 
-    @Autowired
-    private DatabaseService dbService;
-
-    @Autowired
-    private SimpMessagingTemplate messagingTemplate;
-
+    private final DatabaseService dbService;
+    private final SimpMessagingTemplate messagingTemplate;
     private final ObjectMapper mapper = new ObjectMapper();
+
+    public ServerStartupService(DatabaseService dbService, SimpMessagingTemplate messagingTemplate) {
+        this.dbService = dbService;
+        this.messagingTemplate = messagingTemplate;
+    }
 
     @Override
     public void run(String... args) {

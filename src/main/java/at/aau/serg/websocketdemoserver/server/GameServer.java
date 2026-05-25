@@ -8,8 +8,6 @@ import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
 import at.aau.serg.websocketdemoserver.model.game.Accusation;
 import at.aau.serg.websocketdemoserver.model.board.Position;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import java.util.concurrent.Executors;
@@ -36,7 +34,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 @Service
-@Component
 public class GameServer {
 
     private static final String PAYLOAD = "payload";
@@ -45,20 +42,20 @@ public class GameServer {
     private static final String REASON = "reason";
     private static final String CURRENT_PLAYER_INDEX = "currentPlayerIndex";
 
-    @Autowired
-    private DatabaseService dbService;
+    private final DatabaseService dbService;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final WebSocketEventListener eventListener;
     private final LobbyManager lobbyManager = new LobbyManager();
     private final ObjectMapper mapper = new ObjectMapper();
-
-    @Autowired
-    private SimpMessagingTemplate messagingTemplate;
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final Map<String, ScheduledFuture<?>> scheduledEndTurns = new ConcurrentHashMap<>();
 
-    @Autowired
-    private WebSocketEventListener eventListener;
-    public GameServer() {}
+    public GameServer(DatabaseService dbService, SimpMessagingTemplate messagingTemplate, WebSocketEventListener eventListener) {
+        this.dbService = dbService;
+        this.messagingTemplate = messagingTemplate;
+        this.eventListener = eventListener;
+    }
 
     public ObjectNode joinLobby(JsonNode payload) {
         String playerKey = payload.get("playerKey").asText();

@@ -4,7 +4,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
@@ -25,7 +24,6 @@ public class WebSocketEventListener {
     private final DatabaseService dbService;
     private final SimpMessagingTemplate messagingTemplate;
 
-    @Autowired
     public WebSocketEventListener(DatabaseService dbService, SimpMessagingTemplate messagingTemplate) {
         this.dbService = dbService;
         this.messagingTemplate = messagingTemplate;
