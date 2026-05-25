@@ -41,7 +41,7 @@ public class WebSocketBrokerController {
                 return gameServer.setCharacterTypeAndStatusReady(payload);
             }
             case START_GAME -> {
-                return gameServer.startGame(payload);
+                return gameServer.startGame();
             }
             case LEAVE_LOBBY -> {
                 return gameServer.leaveLobby(payload);
@@ -63,7 +63,7 @@ public class WebSocketBrokerController {
                 return gameServer.move(payload);
             }
             case END_TURN -> {
-                return gameServer.endTurn(payload);
+                return gameServer.endTurn();
             }
             case ENTER_ROOM -> {
                 return gameServer.enterRoom(payload);
