@@ -30,11 +30,12 @@ import at.aau.serg.websocketdemoserver.model.enums.WeaponType;
 import at.aau.serg.websocketdemoserver.model.game.Suggestion;
 import at.aau.serg.websocketdemoserver.model.game.SuggestionResolver;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class GameServer {
+    private static final Logger logger = LoggerFactory.getLogger(GameServer.class);
 
     private static final String PAYLOAD = "payload";
     private static final String PLAYER_ID = "playerId";
@@ -74,15 +75,15 @@ public class GameServer {
 
     public ObjectNode joinLobby(JsonNode payload) {
         String playerKey = payload.get("playerKey").asText();
-        System.out.println("[JoinLobby] playerKey: " + playerKey);
-        System.out.println("[JoinLobby] game.isRunning(): " + lobbyManager.getGame().isRunning());
+        logger.info("[JoinLobby] playerKey: {}", playerKey);
+        logger.info("[JoinLobby] game.isRunning(): {}", lobbyManager.getGame().isRunning());
 
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
         Game game = lobbyManager.getGame();
 
         if (game.isRunning() && lobbyManager.isPlayerInGame(playerKey)) {
-            System.out.println("[JoinLobby] RUNNING Rejoin erkannt!");
+            logger.info("[JoinLobby] RUNNING Rejoin erkannt!");
             eventListener.onPlayerRejoined(playerKey);
 
             return buildRejoinRunningResponse(playerKey, game, response, responsePayload);
@@ -377,7 +378,7 @@ public class GameServer {
                     messagingTemplate.convertAndSend(TOPIC_GAME_RESPONSE, response);
                 }
             } catch (Exception e) {
-                Logger.getAnonymousLogger().log(Level.WARNING, "Error scheduling auto end turn", e);
+                logger.warn("Error scheduling auto end turn", e);
             } finally {
                 scheduledEndTurns.remove(gameId);
             }
@@ -424,7 +425,7 @@ public class GameServer {
                     messagingTemplate.convertAndSend(TOPIC_GAME_RESPONSE, abortMsg);
                 }
             } catch (Exception e) {
-                Logger.getAnonymousLogger().log(Level.WARNING, "Error scheduling game reset", e);
+                logger.warn("Error scheduling game reset", e);
             }
         }, delaySeconds, TimeUnit.SECONDS);
     }

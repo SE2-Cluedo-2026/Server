@@ -12,8 +12,11 @@ import tools.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Controller;
 import org.springframework.messaging.handler.annotation.Header;
 import at.aau.serg.websocketdemoserver.server.WebSocketEventListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 @Controller
 public class WebSocketBrokerController {
+    private static final Logger logger = LoggerFactory.getLogger(WebSocketBrokerController.class);
     private final GameServer gameServer;
     private final WebSocketEventListener eventListener;
 
@@ -26,7 +29,7 @@ public class WebSocketBrokerController {
     @SendTo("/topic/lobby-response")
     public ObjectNode routeLobbyMessage(LobbyMessage message, @Header("simpSessionId") String sessionId) {
         JsonNode payload = message.getPayload();
-        System.out.println(message);
+        logger.info("[Lobby] Received: {}", message);
 
         switch (message.getType()) {
             case JOIN_LOBBY -> {
@@ -50,7 +53,7 @@ public class WebSocketBrokerController {
     @SendTo("/topic/game-response")
     public ObjectNode routeGameMessage(GameMessage message) {
         JsonNode payload = message.getPayload();
-        System.out.println(message);
+        logger.info("[Game] Received: {}", message);
 
         switch (message.getType()) {
             case ROLL_DICE -> {
