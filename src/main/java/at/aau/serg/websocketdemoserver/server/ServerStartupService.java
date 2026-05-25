@@ -36,7 +36,9 @@ public class ServerStartupService implements CommandLineRunner {
     public void run(String... args) {
         try {
             Thread.sleep(3000);
-        } catch (InterruptedException ignored) {}
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
 
         try {
             String status = dbService.loadGameStatus();
