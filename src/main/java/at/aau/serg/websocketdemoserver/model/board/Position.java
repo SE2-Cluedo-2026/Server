@@ -12,7 +12,9 @@ public class Position {
     private int y;
     private RoomType room;
 
-    public Position() {}
+    public Position() {
+        // Default constructor — fields are set via setBoardPosition() or setRoomType()
+    }
 
     public void setBoardPosition(int x, int y) {
         this.positionType = PositionType.BOARD;
