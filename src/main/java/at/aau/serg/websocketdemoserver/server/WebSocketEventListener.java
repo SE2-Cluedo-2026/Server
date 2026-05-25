@@ -4,7 +4,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
@@ -21,13 +20,12 @@ import java.util.concurrent.*;
 public class WebSocketEventListener {
 
     private static final Logger logger = LoggerFactory.getLogger(WebSocketEventListener.class);
+    private static final String PAYLOAD_KEY = "payload";
+    private static final String TOPIC_GAME_RESPONSE = "/topic/game-response";
 
-    private final DatabaseService dbService;
     private final SimpMessagingTemplate messagingTemplate;
 
-    @Autowired
-    public WebSocketEventListener(DatabaseService dbService, SimpMessagingTemplate messagingTemplate) {
-        this.dbService = dbService;
+    public WebSocketEventListener(SimpMessagingTemplate messagingTemplate) {
         this.messagingTemplate = messagingTemplate;
     }
 
@@ -86,10 +84,10 @@ public class WebSocketEventListener {
         pauseMsg.put("type", "GAME_PAUSED");
         pausePayload.put("disconnectedPlayerId", playerId);
         pausePayload.put("countdown", 30);
-        pauseMsg.set("payload", pausePayload);
+        pauseMsg.set(PAYLOAD_KEY, pausePayload);
 
         messagingTemplate.convertAndSend(
-                "/topic/game-response", pauseMsg);
+                TOPIC_GAME_RESPONSE, pauseMsg);
 
         logger.info("Timer Started");
         ScheduledFuture<?> timer = scheduler.schedule(() -> processDisconnectTimeout(playerId, game), 30, TimeUnit.SECONDS);
@@ -132,10 +130,10 @@ public class WebSocketEventListener {
             }
             abortPayload.set("existingPlayers", existingPlayers);
 
-            abortMsg.set("payload", abortPayload);
+            abortMsg.set(PAYLOAD_KEY, abortPayload);
 
             messagingTemplate.convertAndSend(
-                    "/topic/game-response", abortMsg);
+                    TOPIC_GAME_RESPONSE, abortMsg);
             logger.info("[DISCONNECT] DISCONNECT_SUCCESSFUL_AFTER_LEAVING");
             logger.info("Timer Stopped");
         }
@@ -161,10 +159,10 @@ public class WebSocketEventListener {
         ObjectNode continuePayload = mapper.createObjectNode();
         continueMsg.put("type", "CONTINUE_GAME");
         continuePayload.put("rejoinedPlayerId", playerId);
-        continueMsg.set("payload", continuePayload);
+        continueMsg.set(PAYLOAD_KEY, continuePayload);
 
         messagingTemplate.convertAndSend(
-                "/topic/game-response", continueMsg);
+                TOPIC_GAME_RESPONSE, continueMsg);
     }
 
     public void removePlayer(String playerId) {

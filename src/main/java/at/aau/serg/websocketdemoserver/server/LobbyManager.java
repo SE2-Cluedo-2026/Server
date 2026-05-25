@@ -46,6 +46,7 @@ public class LobbyManager {
     }
 
     public void joinLobby() {
+        // Join logic is handled by addPlayer()
     }
 
     public boolean setCharacterTypeAndStatusReady(String playerId, CharacterType characterType) {

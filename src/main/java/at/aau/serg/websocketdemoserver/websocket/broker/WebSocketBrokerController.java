@@ -10,23 +10,26 @@ import at.aau.serg.websocketdemoserver.messaging.dtos.GameMessage;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Controller;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.Header;
 import at.aau.serg.websocketdemoserver.server.WebSocketEventListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 @Controller
 public class WebSocketBrokerController {
-    @Autowired
-    private GameServer gameServer;
+    private static final Logger logger = LoggerFactory.getLogger(WebSocketBrokerController.class);
+    private final GameServer gameServer;
+    private final WebSocketEventListener eventListener;
 
-    @Autowired
-    private WebSocketEventListener eventListener;
-
+    public WebSocketBrokerController(GameServer gameServer, WebSocketEventListener eventListener) {
+        this.gameServer = gameServer;
+        this.eventListener = eventListener;
+    }
 
     @MessageMapping("/lobby")
     @SendTo("/topic/lobby-response")
     public ObjectNode routeLobbyMessage(LobbyMessage message, @Header("simpSessionId") String sessionId) {
         JsonNode payload = message.getPayload();
-        System.out.println(message);
+        logger.info("[Lobby] Received: {}", message);
 
         switch (message.getType()) {
             case JOIN_LOBBY -> {
@@ -38,7 +41,7 @@ public class WebSocketBrokerController {
                 return gameServer.setCharacterTypeAndStatusReady(payload);
             }
             case START_GAME -> {
-                return gameServer.startGame(payload);
+                return gameServer.startGame();
             }
             case LEAVE_LOBBY -> {
                 return gameServer.leaveLobby(payload);
@@ -50,7 +53,7 @@ public class WebSocketBrokerController {
     @SendTo("/topic/game-response")
     public ObjectNode routeGameMessage(GameMessage message) {
         JsonNode payload = message.getPayload();
-        System.out.println(message);
+        logger.info("[Game] Received: {}", message);
 
         switch (message.getType()) {
             case ROLL_DICE -> {
@@ -60,7 +63,7 @@ public class WebSocketBrokerController {
                 return gameServer.move(payload);
             }
             case END_TURN -> {
-                return gameServer.endTurn(payload);
+                return gameServer.endTurn();
             }
             case ENTER_ROOM -> {
                 return gameServer.enterRoom(payload);

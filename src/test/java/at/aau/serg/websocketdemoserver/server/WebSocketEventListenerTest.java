@@ -34,9 +34,6 @@ import static org.mockito.Mockito.*;
 class WebSocketEventListenerTest {
 
     @Mock
-    private DatabaseService dbService;
-
-    @Mock
     private SimpMessagingTemplate messagingTemplate;
 
     @InjectMocks

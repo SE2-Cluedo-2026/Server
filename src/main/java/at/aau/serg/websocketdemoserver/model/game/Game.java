@@ -138,9 +138,11 @@ public class Game {
     }
 
     public void makeSuggestion() {
+        // Handled by SuggestionResolver in GameServer
     }
 
     public void makeAccusation() {
+        // Handled by Accusation logic in GameServer
     }
     public Player getCurrentPlayer() {
         return turnManager.getCurrentPlayer(players);
@@ -160,7 +162,7 @@ public class Game {
 
         return Arrays.stream(CharacterType.values())
                 .filter(character -> !takenCharacters.contains(character))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public GameStatus getStatus() {

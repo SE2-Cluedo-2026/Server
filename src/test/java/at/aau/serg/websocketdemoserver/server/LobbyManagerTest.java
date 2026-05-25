@@ -91,13 +91,6 @@ public class LobbyManagerTest {
         assertDoesNotThrow(() -> lobbyManager.joinLobby());
     }
 
-    /*
-    @Test
-    public void TestSetReadyDoesNotThrow() {
-        assertDoesNotThrow(() -> lobbyManager.setReady());
-    }
-     */
-
     @Test
     public void TestCanStartGameReturnsFalse() {
         assertFalse(lobbyManager.canStartGame());

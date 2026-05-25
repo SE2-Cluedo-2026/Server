@@ -6,7 +6,7 @@ public abstract class Card {
     private String cardId;
     private String name;
 
-    public Card(String cardId, String name) {
+    protected Card(String cardId, String name) {
         this.cardId = cardId;
         this.name = name;
     }

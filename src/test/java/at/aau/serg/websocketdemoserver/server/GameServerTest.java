@@ -49,15 +49,16 @@ class GameServerTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private WebSocketEventListener eventListener;
+
     private GameServer gameServer;
     private final ObjectMapper mapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        gameServer = new GameServer();
+        gameServer = new GameServer(dbService, messagingTemplate, eventListener);
         ReflectionTestUtils.setField(gameServer, "lobbyManager", lobbyManager);
-        ReflectionTestUtils.setField(gameServer, "dbService", dbService);
-        ReflectionTestUtils.setField(gameServer, "messagingTemplate", messagingTemplate);
         resetTurnManager();
     }
 
@@ -71,7 +72,7 @@ class GameServerTest {
 
     @Test
     void constructorCreatesServer() {
-        assertNotNull(new GameServer());
+        assertNotNull(new GameServer(dbService, messagingTemplate, eventListener));
     }
 
     @Test
@@ -219,7 +220,7 @@ class GameServerTest {
     void startGameReturnsErrorWhenNotAllPlayersReady() throws Exception {
         when(lobbyManager.canStartGame()).thenReturn(false);
 
-        ObjectNode response = gameServer.startGame(mapper.readTree("{}"));
+        ObjectNode response = gameServer.startGame();
 
         assertEquals(LobbyMessageType.START_GAME_ERROR.toString(), response.get("type").textValue());
         assertEquals("Not all players are ready", response.get("payload").get("reason").textValue());
@@ -230,7 +231,7 @@ class GameServerTest {
         when(lobbyManager.getGame()).thenReturn(null);
 
         assertThrows(NullPointerException.class, () ->
-                gameServer.endTurn(mapper.readTree("{\"playerId\":\"player1\"}"))
+                gameServer.endTurn()
         );
     }
 
@@ -465,7 +466,7 @@ class GameServerTest {
         when(turnManager.getCurrentPlayerId()).thenReturn(0);
         when(game.getPlayers()).thenReturn(List.of(player));
 
-        ObjectNode response = gameServer.startGame(mapper.readTree("{}"));
+        ObjectNode response = gameServer.startGame();
 
         assertEquals(LobbyMessageType.GAME_STARTED.toString(), response.get("type").textValue());
 
@@ -496,9 +497,7 @@ class GameServerTest {
         when(turnManager.getDiceValue()).thenReturn(0);
         when(turnManager.getPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
 
-        ObjectNode response = gameServer.endTurn(
-                mapper.readTree("{\"playerId\":\"player1\"}")
-        );
+        ObjectNode response = gameServer.endTurn();
 
         assertEquals(GameMessageType.END_TURN.toString(), response.get("type").textValue());
         assertEquals("game-1", response.get("payload").get("gameId").textValue());
@@ -839,8 +838,6 @@ class GameServerTest {
     void joinLobbyRejoinedRunningReturnsCompleteStateWithCardsPositionsAndEliminations() throws Exception {
         Game game = mock(Game.class);
         TurnManager turnManager = mock(TurnManager.class);
-        WebSocketEventListener eventListener = mock(WebSocketEventListener.class);
-        ReflectionTestUtils.setField(gameServer, "eventListener", eventListener);
 
         Player rejoined = new Player("player1");
         rejoined.setCharacter(CharacterType.MRS_PINK);
@@ -892,8 +889,6 @@ class GameServerTest {
     void joinLobbyRejoinedRunningWithoutMatchingPlayerStillReturnsEmptyOptionalFields() throws Exception {
         Game game = mock(Game.class);
         TurnManager turnManager = mock(TurnManager.class);
-        WebSocketEventListener eventListener = mock(WebSocketEventListener.class);
-        ReflectionTestUtils.setField(gameServer, "eventListener", eventListener);
 
         when(lobbyManager.getGame()).thenReturn(game);
         when(game.isRunning()).thenReturn(true);
@@ -945,7 +940,7 @@ class GameServerTest {
         when(game.getTurnManager()).thenReturn(TurnManager.getINSTANCE());
         when(game.getPlayers()).thenReturn(List.of(player));
 
-        ObjectNode response = gameServer.startGame(mapper.readTree("{}"));
+        ObjectNode response = gameServer.startGame();
 
         assertEquals(LobbyMessageType.GAME_STARTED.toString(), response.get("type").textValue());
         assertEquals(0, response.get("payload").get("players").get(0).get("cards").size());
@@ -961,7 +956,7 @@ class GameServerTest {
         when(game.getGameId()).thenReturn("game-1");
         doThrow(new IllegalStateException("nope")).when(game).endTurn();
 
-        ObjectNode response = gameServer.endTurn(mapper.readTree("{}"));
+        ObjectNode response = gameServer.endTurn();
 
         assertEquals("END_TURN_ERROR", response.get("type").textValue());
         assertEquals("nope", response.get("payload").get("reason").textValue());
