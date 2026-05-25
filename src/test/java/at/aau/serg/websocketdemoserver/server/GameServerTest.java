@@ -49,15 +49,16 @@ class GameServerTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private WebSocketEventListener eventListener;
+
     private GameServer gameServer;
     private final ObjectMapper mapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        gameServer = new GameServer();
+        gameServer = new GameServer(dbService, messagingTemplate, eventListener);
         ReflectionTestUtils.setField(gameServer, "lobbyManager", lobbyManager);
-        ReflectionTestUtils.setField(gameServer, "dbService", dbService);
-        ReflectionTestUtils.setField(gameServer, "messagingTemplate", messagingTemplate);
         resetTurnManager();
     }
 
@@ -71,7 +72,7 @@ class GameServerTest {
 
     @Test
     void constructorCreatesServer() {
-        assertNotNull(new GameServer());
+        assertNotNull(new GameServer(dbService, messagingTemplate, eventListener));
     }
 
     @Test
@@ -839,8 +840,6 @@ class GameServerTest {
     void joinLobbyRejoinedRunningReturnsCompleteStateWithCardsPositionsAndEliminations() throws Exception {
         Game game = mock(Game.class);
         TurnManager turnManager = mock(TurnManager.class);
-        WebSocketEventListener eventListener = mock(WebSocketEventListener.class);
-        ReflectionTestUtils.setField(gameServer, "eventListener", eventListener);
 
         Player rejoined = new Player("player1");
         rejoined.setCharacter(CharacterType.MRS_PINK);
@@ -892,8 +891,6 @@ class GameServerTest {
     void joinLobbyRejoinedRunningWithoutMatchingPlayerStillReturnsEmptyOptionalFields() throws Exception {
         Game game = mock(Game.class);
         TurnManager turnManager = mock(TurnManager.class);
-        WebSocketEventListener eventListener = mock(WebSocketEventListener.class);
-        ReflectionTestUtils.setField(gameServer, "eventListener", eventListener);
 
         when(lobbyManager.getGame()).thenReturn(game);
         when(game.isRunning()).thenReturn(true);

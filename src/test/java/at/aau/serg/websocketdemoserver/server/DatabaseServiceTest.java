@@ -29,8 +29,8 @@ class DatabaseServiceTest {
 
     @BeforeEach
     void setUp() {
-        databaseService = new DatabaseService();
         jdbc = mock(JdbcTemplate.class);
+        databaseService = new DatabaseService(jdbc);
         ReflectionTestUtils.setField(databaseService, "jdbc", jdbc);
     }
 
