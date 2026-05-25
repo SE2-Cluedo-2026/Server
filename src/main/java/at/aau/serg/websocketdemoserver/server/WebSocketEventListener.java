@@ -23,11 +23,9 @@ public class WebSocketEventListener {
     private static final String PAYLOAD_KEY = "payload";
     private static final String TOPIC_GAME_RESPONSE = "/topic/game-response";
 
-    private final DatabaseService dbService;
     private final SimpMessagingTemplate messagingTemplate;
 
-    public WebSocketEventListener(DatabaseService dbService, SimpMessagingTemplate messagingTemplate) {
-        this.dbService = dbService;
+    public WebSocketEventListener(SimpMessagingTemplate messagingTemplate) {
         this.messagingTemplate = messagingTemplate;
     }
 
