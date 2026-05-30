@@ -29,7 +29,10 @@ import at.aau.serg.websocketdemoserver.model.enums.RoomType;
 import at.aau.serg.websocketdemoserver.model.enums.WeaponType;
 import at.aau.serg.websocketdemoserver.model.game.Suggestion;
 import at.aau.serg.websocketdemoserver.model.game.SuggestionResolver;
+import at.aau.serg.websocketdemoserver.model.game.CheatManager;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,6 +69,8 @@ public class GameServer {
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final Map<String, ScheduledFuture<?>> scheduledEndTurns = new ConcurrentHashMap<>();
+
+    private Suggestion pendingSuggestion = null;
 
     public GameServer(DatabaseService dbService, SimpMessagingTemplate messagingTemplate, WebSocketEventListener eventListener) {
         this.dbService = dbService;
@@ -825,14 +830,15 @@ public class GameServer {
             Suggestion suggestion = new Suggestion(suggester, suspect, room, weapon);
             SuggestionResolver resolver = new SuggestionResolver();
 
-            Player responder = resolver.resolveSuggestion(suggestion, game.getPlayers());
+            Player responder = resolver.resolveSuggestion(suggestion, buildEffectivePlayers(game, suggesterID));
 
-            response.put("type", GameMessageType.SUGGESTION_RESULT.toString());
+            response.put("type", GameMessageType.SUGGESTION_REQUEST.toString());
             responsePayload.put("gameID", game.getGameId());
             responsePayload.put("suggesterID", suggesterID);
             responsePayload.put(SUSPECT, suspect.toString());
             responsePayload.put("room", room.toString());
             responsePayload.put(WEAPON, weapon.toString());
+            responsePayload.put("cheatWindowSeconds", 5);
 
             ArrayNode matchingCardsArray = mapper.createArrayNode();
 
@@ -891,6 +897,136 @@ public class GameServer {
         }
 
         responsePayload.set(EXISTING_PLAYERS, existingPlayers);
+    }
+
+    private List<Player> buildEffectivePlayers(Game game, String suggesterID) {
+        CheatManager cheatManager = game.getCheatManager();
+        List<Player> effectivePlayers = new ArrayList<>();
+
+        for (Player p : game.getPlayers()) {
+            boolean isSuggester = p.getPlayerId().equals(suggesterID);
+            boolean attemptedCheat = cheatManager.hasCheated(p.getPlayerId());
+
+            if (!isSuggester && attemptedCheat && !p.isCheatUsed()) {
+                p.useCheat();
+                dbService.updatePlayerFlags(p.getPlayerId(), p.isEliminated(), p.isCheatUsed(), p.isAccusationUsed());
+                logger.info("[Cheat] Player {} successfully cheated – cards excluded", p.getPlayerId());
+            } else {
+                effectivePlayers.add(p);
+            }
+        }
+        return effectivePlayers;
+    }
+
+    public ObjectNode handleCheatAttempt(JsonNode payload) {
+        ObjectNode response = mapper.createObjectNode();
+        ObjectNode responsePayload = mapper.createObjectNode();
+
+        try {
+            String playerId = payload.get(PLAYER_ID).asText();
+            Game game = lobbyManager.getGame();
+
+            if (!game.isRunning()) {
+                response.put("type", "CHEAT_ATTEMPT_ERROR");
+                responsePayload.put(REASON, GAME_NOT_RUNNING);
+                response.set(PAYLOAD, responsePayload);
+                return response;
+            }
+
+            game.getCheatManager().registerCheatAttempt(playerId);
+            logger.info("[Cheat] Player {} registered a cheat attempt", playerId);
+
+            response.put("type", GameMessageType.CHEAT_ATTEMPT.toString());
+            responsePayload.put(PLAYER_ID, playerId);
+            responsePayload.put("registered", true);
+
+        } catch (Exception e) {
+            response.put("type", "CHEAT_ATTEMPT_ERROR");
+            responsePayload.put(REASON, "Error processing cheat attempt: " + e.getMessage());
+        }
+
+        response.set(PAYLOAD, responsePayload);
+        return response;
+    }
+
+    public ObjectNode handleCheatButtonPressed(JsonNode payload) {
+        ObjectNode response = mapper.createObjectNode();
+        ObjectNode responsePayload = mapper.createObjectNode();
+
+        try {
+            String suggesterID = payload.get("suggesterID").asText();
+            boolean cheatPressed = payload.has("cheatPressed") && payload.get("cheatPressed").asBoolean();
+
+            Game game = lobbyManager.getGame();
+            CheatManager cheatManager = game.getCheatManager();
+
+            List<Player> realCheaters = new ArrayList<>();
+            for (String cheaterId : cheatManager.getCheaterIds()) {
+                if (!cheaterId.equals(suggesterID)) {
+                    Player cheater = findPlayer(game, cheaterId);
+                    if (cheater != null) realCheaters.add(cheater);
+                }
+            }
+
+            responsePayload.put("suggesterID", suggesterID);
+
+            if (cheatPressed && !realCheaters.isEmpty()) {
+                response.put("type", GameMessageType.CHEAT_RESULT.toString());
+                responsePayload.put("cheatDetected", true);
+
+                ArrayNode cheatersArray = mapper.createArrayNode();
+                for (Player cheater : realCheaters) {
+                    ObjectNode cheaterNode = mapper.createObjectNode();
+                    cheaterNode.put(PLAYER_ID, cheater.getPlayerId());
+                    ArrayNode cheaterCards = mapper.createArrayNode();
+                    if (cheater.getCards() != null) {
+                        for (Card card : cheater.getCards()) {
+                            ObjectNode cardNode = mapper.createObjectNode();
+                            cardNode.put(CARD_ID, card.getCardId());
+                            cardNode.put("name", card.getName());
+                            cardNode.put("type", card.getClass().getSimpleName());
+                            cheaterCards.add(cardNode);
+                        }
+                        dbService.saveSeenCards(suggesterID, cheater.getCards());
+                    }
+                    cheaterNode.set("cards", cheaterCards);
+                    cheatersArray.add(cheaterNode);
+                }
+                responsePayload.set("cheaters", cheatersArray);
+
+            } else {
+                response.put("type", GameMessageType.CHEAT_RESULT.toString());
+                responsePayload.put("cheatDetected", false);
+
+                Player suggester = findPlayer(game, suggesterID);
+                if (suggester != null && suggester.getCards() != null && !suggester.getCards().isEmpty()) {
+                    int randomIndex = (int) (Math.random() * suggester.getCards().size());
+                    Card randomCard = suggester.getCards().get(randomIndex);
+
+                    ObjectNode cardNode = mapper.createObjectNode();
+                    cardNode.put(CARD_ID, randomCard.getCardId());
+                    cardNode.put("name", randomCard.getName());
+                    cardNode.put("type", randomCard.getClass().getSimpleName());
+                    responsePayload.set("revealedCard", cardNode);
+
+                    List<Card> singleCard = new ArrayList<>();
+                    singleCard.add(randomCard);
+                    for (Player p : game.getPlayers()) {
+                        if (!p.getPlayerId().equals(suggesterID) && !p.isEliminated()) {
+                            dbService.saveSeenCards(p.getPlayerId(), singleCard);
+                        }
+                    }
+                }
+            }
+            cheatManager.clearCheaters();
+
+        } catch (Exception e) {
+            response.put("type", "CHEAT_RESULT_ERROR");
+            responsePayload.put(REASON, "Error processing cheat button: " + e.getMessage());
+        }
+
+        response.set(PAYLOAD, responsePayload);
+        return response;
     }
 
     private Player findPlayer(Game game, String playerId) {

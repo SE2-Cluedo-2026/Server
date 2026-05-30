@@ -77,6 +77,12 @@ public class WebSocketBrokerController {
             case MAKE_SUGGESTION -> {
                 return gameServer.handleSuggestion(payload);
             }
+            case CHEAT_ATTEMPT -> {
+                return gameServer.handleCheatAttempt(payload);
+            }
+            case CHEAT_BUTTON_PRESSED -> {
+                return gameServer.handleCheatButtonPressed(payload);
+            }
         }
         return null;
     }

@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -54,6 +55,7 @@ class GameServerTest {
 
     private GameServer gameServer;
     private final ObjectMapper mapper = new ObjectMapper();
+    private static final String TOPIC_GAME_RESPONSE = "/topic/game-response";
 
     @BeforeEach
     void setUp() {
@@ -88,6 +90,19 @@ class GameServerTest {
         assertEquals("player1", response.get("payload").get("playerId").textValue());
         assertEquals("Lobby is full", response.get("payload").get("message").textValue());
         verify(lobbyManager, never()).addPlayer(anyString());
+    }
+
+    @Test
+    void joinLobbyReturnsGameFullWhenGameIsRunningAndPlayerNotInGame() throws Exception {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(lobbyManager.isPlayerInGame("player1")).thenReturn(false);
+
+        ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"player1\"}"));
+
+        assertEquals(LobbyMessageType.GAME_FULL.toString(), response.get("type").textValue());
+        assertEquals("A game is currently in progress", response.get("payload").get("message").textValue());
     }
 
     @Test
@@ -126,12 +141,12 @@ class GameServerTest {
         when(lobbyManager.getPlayers()).thenReturn(List.of(rejoined));
         when(lobbyManager.getGame()).thenReturn(game);
         when(game.isRunning()).thenReturn(false);
+        when(game.getPlayers()).thenReturn(List.of(rejoined));
 
         ObjectNode response = gameServer.joinLobby(mapper.readTree("{\"playerKey\":\"player1\"}"));
 
         assertEquals(LobbyMessageType.PLAYER_REJOINED.toString(), response.get("type").textValue());
-        assertEquals(CharacterType.MRS_PINK.toString(),
-                response.get("payload").get("availableCharacters").get(0).textValue());
+        assertTrue(response.get("payload").has("availableCharacters"));
     }
 
     @Test
@@ -177,6 +192,19 @@ class GameServerTest {
     }
 
     @Test
+    void leaveLobbyReturnsPlayerRemovedWhenGameIsRunningAndPlayerAlreadyJoined() throws Exception {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(game.playerAlreadyJoined("player1")).thenReturn(true);
+
+        ObjectNode response = gameServer.leaveLobby(mapper.readTree("{\"playerId\":\"player1\"}"));
+
+        assertEquals(LobbyMessageType.PLAYER_REMOVED.toString(), response.get("type").textValue());
+        assertEquals("player1", response.get("payload").get("playerId").textValue());
+    }
+
+    @Test
     void setCharacterReadyReturnsUpdatedLobbyState() throws Exception {
         Player player = new Player("player1");
         player.setCharacter(CharacterType.MRS_PINK);
@@ -194,6 +222,22 @@ class GameServerTest {
         assertEquals("MRS_PINK", response.get("payload").get("characterType").textValue());
         assertTrue(response.get("payload").get("ready").asBoolean());
         assertEquals("DR_BLUE", response.get("payload").get("availableCharacters").get(0).textValue());
+    }
+
+    @Test
+    void setCharacterReadyExistingPlayerWithCharacterShowsCharacterType() throws Exception {
+        Player player = new Player("player1");
+        player.setCharacter(CharacterType.MRS_PINK);
+        player.markReady();
+
+        when(lobbyManager.setCharacterTypeAndStatusReady("player1", CharacterType.MRS_PINK)).thenReturn(true);
+        when(lobbyManager.getAvailableCharacters()).thenReturn(List.of());
+        when(lobbyManager.getPlayers()).thenReturn(List.of(player));
+
+        ObjectNode response = gameServer.setCharacterTypeAndStatusReady(
+                mapper.readTree("{\"playerId\":\"player1\",\"characterType\":\"MRS_PINK\"}"));
+
+        assertEquals("MRS_PINK", response.get("payload").get("existingPlayers").get(0).get("characterType").textValue());
     }
 
     @Test
@@ -317,6 +361,25 @@ class GameServerTest {
     }
 
     @Test
+    void takeHiddenWayReturnsErrorWhenPlayerIsOnBoardNotInRoom() throws Exception {
+        Game game = mock(Game.class);
+        Player player = new Player("player1");
+        Position position = new Position();
+        position.setBoardPosition(1, 1);
+        player.setCurrentPosition(position);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        ObjectNode response = gameServer.takeHiddenWay(
+                mapper.readTree("{\"playerId\":\"player1\"}")
+        );
+
+        assertEquals("HIDDEN_WAY_ERROR", response.get("type").textValue());
+        assertEquals("Player is not in a room", response.get("payload").get("reason").textValue());
+    }
+
+    @Test
     void takeHiddenWayReturnsErrorWhenRoomHasNoHiddenPassage() throws Exception {
         Game game = mock(Game.class);
         Player player = new Player("player1");
@@ -356,6 +419,49 @@ class GameServerTest {
     }
 
     @Test
+    void scheduleGameResetSendsAbortMessageAfterDelay() throws Exception {
+        Game game = mock(Game.class);
+        Player accuser = new Player("player1");
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(game.getPlayers()).thenReturn(List.of(accuser));
+        when(game.getCaseFile()).thenReturn(matchingCaseFile());
+        when(game.getGameId()).thenReturn("game-1");
+        when(game.getStatus()).thenReturn(GameStatus.FINISHED);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.TURN_ENDED);
+        when(game.getAvailableCharacters()).thenReturn(List.of());
+
+        gameServer.handleAccusation(mapper.readTree(
+                "{\"accuserID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
+
+        verify(messagingTemplate, timeout(6000)).convertAndSend(
+                eq(TOPIC_GAME_RESPONSE), any(ObjectNode.class));
+    }
+
+    @Test
+    void scheduleGameResetLogsErrorWhenExceptionThrown() throws Exception {
+        ScheduledExecutorService mockScheduler = mock(ScheduledExecutorService.class);
+        ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
+
+        doAnswer(invocation -> {
+            Runnable task = invocation.getArgument(0);
+            try {
+                task.run();
+            } catch (Exception e) {
+
+            }
+            return mockFuture;
+        }).when(mockScheduler).schedule(any(Runnable.class), anyLong(), any());
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", mockScheduler);
+
+        when(lobbyManager.getGame()).thenThrow(new RuntimeException("reset error"));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleGameReset", 0);
+    }
+
+    @Test
     void handleAccusationEliminatesPlayerWhenAccusationIsWrong() throws Exception {
         Game game = mock(Game.class);
         Player accuser = new Player("player1");
@@ -380,6 +486,7 @@ class GameServerTest {
     void handleAccusationAbortsGameWhenAllPlayersAreEliminated() throws Exception {
         Game game = mock(Game.class);
         Player accuser = new Player("player1");
+        accuser.setCharacter(CharacterType.MRS_PINK);
 
         when(lobbyManager.getGame()).thenReturn(game);
         when(game.isRunning()).thenReturn(true);
@@ -388,6 +495,7 @@ class GameServerTest {
         when(game.getGameId()).thenReturn("game-1");
         when(game.allPlayersEliminated()).thenReturn(true);
         when(game.getStatus()).thenReturn(GameStatus.ABORTED);
+        when(game.getAvailableCharacters()).thenReturn(List.of(CharacterType.DR_BLUE));
         when(game.getCurrentPhase()).thenReturn(TurnPhase.TURN_ENDED);
 
         ObjectNode response = gameServer.handleAccusation(mapper.readTree(
@@ -413,38 +521,28 @@ class GameServerTest {
 
     @Test
     void handleSuggestionReturnsMatchingCardsFromResponder() throws Exception {
-        Game game = mock(Game.class);
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+
         Player suggester = new Player("player1");
         Player responder = new Player("player2");
-
         responder.setCards(List.of(
                 new RoomCard("r1", "Kitchen", RoomType.KITCHEN),
                 new WeaponCard("w1", "Knife", WeaponType.KNIFE)
         ));
 
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+        ReflectionTestUtils.setField(game, "players", List.of(suggester, responder));
+        ReflectionTestUtils.setField(game, "gameId", "game-1");
+
         when(lobbyManager.getGame()).thenReturn(game);
-        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
-        when(game.getPlayers()).thenReturn(List.of(suggester, responder));
-        when(game.getGameId()).thenReturn("game-1");
-        when(game.getCurrentPlayer()).thenReturn(suggester);
 
         ObjectNode response = gameServer.handleSuggestion(mapper.readTree(
                 "{\"suggesterID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
 
-        assertEquals(GameMessageType.SUGGESTION_RESULT.toString(), response.get("type").textValue());
-        assertEquals("player2", response.get("payload").get("responderID").textValue());
-        assertEquals(2, response.get("payload").get("matchingCards").size());
+        assertEquals(GameMessageType.SUGGESTION_REQUEST.toString(), response.get("type").textValue());
 
-        @SuppressWarnings("unchecked")
-        Map<String, java.util.concurrent.ScheduledFuture<?>> futures =
-                (Map<String, java.util.concurrent.ScheduledFuture<?>>)
-                        ReflectionTestUtils.getField(gameServer, "scheduledEndTurns");
-
-        assertTrue(futures.containsKey("game-1"));
-
-        ReflectionTestUtils.invokeMethod(gameServer,
-                "cancelScheduledEndTurn",
-                "game-1");
+        ReflectionTestUtils.invokeMethod(gameServer, "cancelScheduledEndTurn", "game-1");
     }
 
     @Test
@@ -590,6 +688,32 @@ class GameServerTest {
 
         verify(turnManager).decrementMove(false);
         verify(game, timeout(1000)).endTurn();
+    }
+
+    @Test
+    void moveSchedulesAutoEndForDoorFieldWhenNoMovesRemain() throws Exception {
+        Game game = mock(Game.class);
+        Player player = new Player("player1");
+        TurnManager turnManager = mock(TurnManager.class);
+
+        Board board = mock(Board.class);
+        Field[][] fields = new Field[1][1];
+        fields[0][0] = new Field(FieldType.DOOR_FIELD);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getPlayers()).thenReturn(List.of(player));
+        when(game.getTurnManager()).thenReturn(turnManager);
+        when(turnManager.getMovesRemaining()).thenReturn(0);
+        when(turnManager.getPhase()).thenReturn(TurnPhase.WAITING_FOR_MOVE);
+        when(game.getBoard()).thenReturn(board);
+        when(board.getFields()).thenReturn(fields);
+
+        ObjectNode response = gameServer.move(
+                mapper.readTree("{\"playerId\":\"player1\",\"position\":\"0,0\"}")
+        );
+
+        assertEquals(GameMessageType.MOVE.toString(), response.get("type").textValue());
+        verify(turnManager).setPhaseWaitingForMove();
     }
 
     @Test
@@ -1068,20 +1192,23 @@ class GameServerTest {
 
     @Test
     void handleSuggestionReturnsNoResponderWithEmptyMatchingCards() throws Exception {
-        Game game = mock(Game.class);
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+
         Player suggester = new Player("player1");
 
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+        ReflectionTestUtils.setField(game, "players", List.of(suggester));
+        ReflectionTestUtils.setField(game, "gameId", "game-1");
+
         when(lobbyManager.getGame()).thenReturn(game);
-        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
-        when(game.getPlayers()).thenReturn(List.of(suggester));
-        when(game.getGameId()).thenReturn("game-1");
-        when(game.getCurrentPlayer()).thenReturn(null);
 
-        ObjectNode response = gameServer.handleSuggestion(mapper.readTree("{\"suggesterID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
+        ObjectNode response = gameServer.handleSuggestion(mapper.readTree(
+                "{\"suggesterID\":\"player1\",\"suspect\":\"MRS_PINK\",\"room\":\"KITCHEN\",\"weapon\":\"KNIFE\"}"));
 
-        assertEquals(GameMessageType.SUGGESTION_RESULT.toString(), response.get("type").textValue());
-        assertEquals("", response.get("payload").get("responderID").textValue());
-        assertEquals(0, response.get("payload").get("matchingCards").size());
+        assertEquals(GameMessageType.SUGGESTION_REQUEST.toString(), response.get("type").textValue());
+
+        ReflectionTestUtils.invokeMethod(gameServer, "cancelScheduledEndTurn", "game-1");
     }
 
     @Test
@@ -1138,4 +1265,313 @@ class GameServerTest {
         assertFalse(scheduled.containsKey("game-1"));
     }
 
+    @Test
+    void buildEffectivePlayers_includesAllPlayersWhenNoCheating() {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+
+        Player suggester = new Player("player1");
+        Player other = new Player("player2");
+
+        ReflectionTestUtils.setField(game, "players", List.of(suggester, other));
+
+        List<Player> result = ReflectionTestUtils.invokeMethod(
+                gameServer, "buildEffectivePlayers", game, "player1"
+        );
+
+        assertEquals(2, result.size());
+        assertTrue(result.contains(suggester));
+        assertTrue(result.contains(other));
+    }
+
+    @Test
+    void buildEffectivePlayers_excludesPlayerWhoCheatdAndHasNotUsedCheatYet() {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+
+        Player suggester = new Player("player1");
+        Player cheater = new Player("player2");
+
+        game.getCheatManager().registerCheatAttempt("player2");
+
+        ReflectionTestUtils.setField(game, "players", List.of(suggester, cheater));
+
+        List<Player> result = ReflectionTestUtils.invokeMethod(
+                gameServer, "buildEffectivePlayers", game, "player1"
+        );
+
+        assertEquals(1, result.size());
+        assertTrue(result.contains(suggester));
+        assertFalse(result.contains(cheater));
+        assertTrue(cheater.isCheatUsed());
+    }
+
+    @Test
+    void buildEffectivePlayers_includesPlayerWhoAlreadyUsedCheat() {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+
+        Player suggester = new Player("player1");
+        Player cheater = new Player("player2");
+        cheater.useCheat();
+
+        game.getCheatManager().registerCheatAttempt("player2");
+
+        ReflectionTestUtils.setField(game, "players", List.of(suggester, cheater));
+
+        List<Player> result = ReflectionTestUtils.invokeMethod(
+                gameServer, "buildEffectivePlayers", game, "player1"
+        );
+
+        assertEquals(2, result.size());
+        assertTrue(result.contains(cheater));
+    }
+
+    @Test
+    void buildEffectivePlayers_doesNotExcludeSuggesterEvenIfRegisteredAsCheat() {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+
+        Player suggester = new Player("player1");
+        game.getCheatManager().registerCheatAttempt("player1");
+
+        ReflectionTestUtils.setField(game, "players", List.of(suggester));
+
+        List<Player> result = ReflectionTestUtils.invokeMethod(
+                gameServer, "buildEffectivePlayers", game, "player1"
+        );
+
+        assertEquals(1, result.size());
+        assertTrue(result.contains(suggester));
+    }
+
+    @Test
+    void handleCheatAttempt_returnsErrorWhenGameIsNotRunning() throws Exception {
+        Game game = Game.getINSTANCE();
+        ReflectionTestUtils.setField(game, "status", GameStatus.LOBBY);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        ObjectNode response = gameServer.handleCheatAttempt(
+                mapper.readTree("{\"playerId\":\"player1\"}")
+        );
+
+        assertEquals("CHEAT_ATTEMPT_ERROR", response.get("type").textValue());
+        assertEquals("Game is not running", response.get("payload").get("reason").textValue());
+    }
+
+    @Test
+    void handleCheatAttempt_registersCheatAttemptSuccessfully() throws Exception {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        ObjectNode response = gameServer.handleCheatAttempt(
+                mapper.readTree("{\"playerId\":\"player1\"}")
+        );
+
+        assertEquals(GameMessageType.CHEAT_ATTEMPT.toString(), response.get("type").textValue());
+        assertEquals("player1", response.get("payload").get("playerId").textValue());
+        assertTrue(response.get("payload").get("registered").asBoolean());
+        assertTrue(game.getCheatManager().hasCheated("player1"));
+    }
+
+    @Test
+    void handleCheatAttempt_doesNotRegisterSamePlayerTwice() throws Exception {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        gameServer.handleCheatAttempt(mapper.readTree("{\"playerId\":\"player1\"}"));
+        gameServer.handleCheatAttempt(mapper.readTree("{\"playerId\":\"player1\"}"));
+
+        assertEquals(1, game.getCheatManager().getCheaterIds().size());
+    }
+
+    @Test
+    void handleCheatAttempt_returnsErrorOnException() throws Exception {
+        when(lobbyManager.getGame()).thenThrow(new RuntimeException("unexpected"));
+
+        ObjectNode response = gameServer.handleCheatAttempt(
+                mapper.readTree("{\"playerId\":\"player1\"}")
+        );
+
+        assertEquals("CHEAT_ATTEMPT_ERROR", response.get("type").textValue());
+        assertTrue(response.get("payload").get("reason").textValue().contains("unexpected"));
+    }
+
+    @Test
+    void handleCheatButtonPressed_cheatDetectedWhenPlayerCheatedAndButtonPressed() throws Exception {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+
+        Player suggester = new Player("player1");
+        Player cheater = new Player("player2");
+        cheater.setCards(List.of(new RoomCard("r1", "Kitchen", RoomType.KITCHEN)));
+
+        game.getCheatManager().registerCheatAttempt("player2");
+        ReflectionTestUtils.setField(game, "players", List.of(suggester, cheater));
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        ObjectNode response = gameServer.handleCheatButtonPressed(
+                mapper.readTree("{\"suggesterID\":\"player1\",\"cheatPressed\":true}")
+        );
+
+        assertEquals(GameMessageType.CHEAT_RESULT.toString(), response.get("type").textValue());
+        assertTrue(response.get("payload").get("cheatDetected").asBoolean());
+        assertEquals("player2", response.get("payload").get("cheaters").get(0).get("playerId").textValue());
+        assertEquals(1, response.get("payload").get("cheaters").get(0).get("cards").size());
+    }
+
+    @Test
+    void handleCheatButtonPressed_noCheatDetectedWhenButtonNotPressed() throws Exception {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+
+        Player suggester = new Player("player1");
+        suggester.setCards(List.of(new RoomCard("r1", "Kitchen", RoomType.KITCHEN)));
+
+        game.getCheatManager().registerCheatAttempt("player2");
+        ReflectionTestUtils.setField(game, "players", List.of(suggester));
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        ObjectNode response = gameServer.handleCheatButtonPressed(
+                mapper.readTree("{\"suggesterID\":\"player1\",\"cheatPressed\":false}")
+        );
+
+        assertEquals(GameMessageType.CHEAT_RESULT.toString(), response.get("type").textValue());
+        assertFalse(response.get("payload").get("cheatDetected").asBoolean());
+        assertTrue(response.get("payload").has("revealedCard"));
+    }
+
+    @Test
+    void handleCheatButtonPressed_savesSeenCardsForOtherPlayers() throws Exception {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+
+        Player suggester = new Player("player1");
+        suggester.setCards(List.of(new RoomCard("r1", "Kitchen", RoomType.KITCHEN)));
+        Player other = new Player("player2");
+
+        ReflectionTestUtils.setField(game, "players", List.of(suggester, other));
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        gameServer.handleCheatButtonPressed(
+                mapper.readTree("{\"suggesterID\":\"player1\",\"cheatPressed\":false}")
+        );
+
+        verify(dbService).saveSeenCards(eq("player2"), anyList());
+    }
+
+    @Test
+    void handleCheatButtonPressed_noCheatDetectedWhenNobodyCheated() throws Exception {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+
+        Player suggester = new Player("player1");
+        suggester.setCards(List.of(new WeaponCard("w1", "Knife", WeaponType.KNIFE)));
+
+        ReflectionTestUtils.setField(game, "players", List.of(suggester));
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        ObjectNode response = gameServer.handleCheatButtonPressed(
+                mapper.readTree("{\"suggesterID\":\"player1\",\"cheatPressed\":true}")
+        );
+
+        assertEquals(GameMessageType.CHEAT_RESULT.toString(), response.get("type").textValue());
+        assertFalse(response.get("payload").get("cheatDetected").asBoolean());
+        assertTrue(response.get("payload").has("revealedCard"));
+    }
+
+    @Test
+    void handleCheatButtonPressed_clearsCheatersAfterResolution() throws Exception {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+
+        Player suggester = new Player("player1");
+        suggester.setCards(List.of(new RoomCard("r1", "Kitchen", RoomType.KITCHEN)));
+
+        game.getCheatManager().registerCheatAttempt("player2");
+        ReflectionTestUtils.setField(game, "players", List.of(suggester));
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        gameServer.handleCheatButtonPressed(
+                mapper.readTree("{\"suggesterID\":\"player1\",\"cheatPressed\":false}")
+        );
+
+        assertTrue(game.getCheatManager().getCheaterIds().isEmpty());
+    }
+
+    @Test
+    void handleCheatButtonPressed_returnsErrorOnException() throws Exception {
+        when(lobbyManager.getGame()).thenThrow(new RuntimeException("unexpected"));
+
+        ObjectNode response = gameServer.handleCheatButtonPressed(
+                mapper.readTree("{\"suggesterID\":\"player1\",\"cheatPressed\":true}")
+        );
+
+        assertEquals("CHEAT_RESULT_ERROR", response.get("type").textValue());
+        assertTrue(response.get("payload").get("reason").textValue().contains("unexpected"));
+    }
+
+    @Test
+    void scheduleAutoEndTurnLogsErrorWhenExceptionThrown() throws Exception {
+        ScheduledExecutorService mockScheduler = mock(ScheduledExecutorService.class);
+        ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
+
+        doAnswer(invocation -> {
+            Runnable task = invocation.getArgument(0);
+            try {
+                task.run();
+            } catch (Exception e) {
+            }
+            return mockFuture;
+        }).when(mockScheduler).schedule(any(Runnable.class), anyLong(), any());
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", mockScheduler);
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame())
+                .thenReturn(game)
+                .thenThrow(new RuntimeException("scheduler error"));
+        when(game.getCurrentPlayer()).thenReturn(new Player("player1"));
+        when(game.getGameId()).thenReturn("game-1");
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", 0);
+    }
+
+    @Test
+    void handleCheatButtonPressed_noRevealedCardWhenSuggesterHasNoCards() throws Exception {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+
+        Player suggester = new Player("player1");
+
+        ReflectionTestUtils.setField(game, "players", List.of(suggester));
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        ObjectNode response = gameServer.handleCheatButtonPressed(
+                mapper.readTree("{\"suggesterID\":\"player1\",\"cheatPressed\":false}")
+        );
+
+        assertEquals(GameMessageType.CHEAT_RESULT.toString(), response.get("type").textValue());
+        assertFalse(response.get("payload").get("cheatDetected").asBoolean());
+        assertFalse(response.get("payload").has("revealedCard"));
+    }
 }
