@@ -20,6 +20,7 @@ public class Game {
     private Board board;
     private CaseFile caseFile;
     private Deck deck;
+    private final CheatManager cheatManager = new CheatManager();
     private TurnManager turnManager;
     private String gameId = "game1";
 
@@ -191,6 +192,10 @@ public class Game {
 
     public Deck getDeck() {
         return deck;
+    }
+
+    public CheatManager getCheatManager() {
+        return cheatManager;
     }
 
     public void restoreState(GameStatus status, TurnPhase currentPhase, List<Player> players, CaseFile caseFile) {
