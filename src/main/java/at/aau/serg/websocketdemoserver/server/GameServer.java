@@ -391,6 +391,53 @@ public class GameServer {
         scheduledEndTurns.put(gameId, future);
     }
 
+    private void scheduleSuggestionResolution(String suggesterID, String gameId) {
+        scheduler.schedule(() -> {
+            try {
+                Game game = lobbyManager.getGame();
+                if (game == null || pendingSuggestion == null) return;
+
+                SuggestionResolver resolver = new SuggestionResolver();
+                Player responder = resolver.resolveSuggestion(
+                        pendingSuggestion,
+                        buildEffectivePlayers(game, suggesterID)
+                );
+
+                ObjectNode response = mapper.createObjectNode();
+                ObjectNode responsePayload = mapper.createObjectNode();
+
+                response.put("type", GameMessageType.SUGGESTION_RESULT.toString());
+                responsePayload.put("suggesterID", suggesterID);
+                responsePayload.put("suspect", pendingSuggestion.getSuspect().toString());
+                responsePayload.put("room", pendingSuggestion.getRoom().toString());
+                responsePayload.put("weapon", pendingSuggestion.getWeapon().toString());
+
+                ArrayNode matchingCardsArray = mapper.createArrayNode();
+                if (responder != null) {
+                    responsePayload.put("responderID", responder.getPlayerId());
+                    for (Card card : pendingSuggestion.getMatchingCards()) {
+                        ObjectNode cardNode = mapper.createObjectNode();
+                        cardNode.put(CARD_ID, card.getCardId());
+                        cardNode.put("name", card.getName());
+                        cardNode.put("type", card.getClass().getSimpleName());
+                        matchingCardsArray.add(cardNode);
+                    }
+                    dbService.saveSeenCards(suggesterID, pendingSuggestion.getMatchingCards());
+                } else {
+                    responsePayload.put("responderID", "");
+                }
+                responsePayload.set("matchingCards", matchingCardsArray);
+                response.set(PAYLOAD, responsePayload);
+
+                pendingSuggestion = null;
+
+                messagingTemplate.convertAndSend(TOPIC_GAME_RESPONSE, response);
+
+            } catch (Exception e) {
+                logger.warn("Error resolving suggestion after delay", e);
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
 
     private void cancelScheduledEndTurn(String gameId) {
         ScheduledFuture<?> future = scheduledEndTurns.remove(gameId);
@@ -783,8 +830,6 @@ public class GameServer {
         return response;
     }
 
-
-
     public ObjectNode handleSuggestion(JsonNode payload) {
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
@@ -827,10 +872,7 @@ public class GameServer {
                 return response;
             }
 
-            Suggestion suggestion = new Suggestion(suggester, suspect, room, weapon);
-            SuggestionResolver resolver = new SuggestionResolver();
-
-            Player responder = resolver.resolveSuggestion(suggestion, buildEffectivePlayers(game, suggesterID));
+            this.pendingSuggestion = new Suggestion(suggester, suspect, room, weapon);
 
             response.put("type", GameMessageType.SUGGESTION_REQUEST.toString());
             responsePayload.put("gameID", game.getGameId());
@@ -840,27 +882,7 @@ public class GameServer {
             responsePayload.put(WEAPON, weapon.toString());
             responsePayload.put("cheatWindowSeconds", 5);
 
-            ArrayNode matchingCardsArray = mapper.createArrayNode();
-
-            if (responder != null) {
-                responsePayload.put("responderID", responder.getPlayerId());
-
-                for (Card card : suggestion.getMatchingCards()) {
-                    ObjectNode cardNode = mapper.createObjectNode();
-                    cardNode.put(CARD_ID, card.getCardId());
-                    cardNode.put("name", card.getName());
-                    cardNode.put("type", card.getClass().getSimpleName());
-                    cardNode.put("seen", true);
-
-                    matchingCardsArray.add(cardNode);
-                }
-                dbService.saveSeenCards(suggesterID, suggestion.getMatchingCards());
-            } else {
-                responsePayload.put("responderID", "");
-            }
-
-            responsePayload.set("matchingCards", matchingCardsArray);
-            scheduleAutoEndTurn(5);
+            scheduleSuggestionResolution(suggesterID, game.getGameId());
 
         } catch (IllegalArgumentException e) {
             response.put("type", GameMessageType.SUGGESTION_ERROR.toString());
