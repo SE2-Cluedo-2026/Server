@@ -173,6 +173,7 @@ public class GameServer {
                 }
             }
             responsePayload.set("myCards", cardsArray);
+            responsePayload.set("seenCards", cardsToArray(rejoinedPlayer.getSeenCards()));
         }
 
         ArrayNode playersArray = mapper.createArrayNode();
@@ -220,9 +221,9 @@ public class GameServer {
 
     public ObjectNode leaveLobby(JsonNode payload) {
         String playerId = payload.get(PLAYER_ID).asText();
-        
+
         Game game = lobbyManager.getGame();
-        
+
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
         responsePayload.put(PLAYER_ID, playerId);
@@ -854,7 +855,7 @@ public class GameServer {
 
                     matchingCardsArray.add(cardNode);
                 }
-                dbService.saveSeenCards(suggesterID, suggestion.getMatchingCards());
+                rememberSeenCards(game, suggesterID, suggestion.getMatchingCards());
             } else {
                 responsePayload.put("responderID", "");
             }
@@ -987,7 +988,7 @@ public class GameServer {
                             cardNode.put("type", card.getClass().getSimpleName());
                             cheaterCards.add(cardNode);
                         }
-                        dbService.saveSeenCards(suggesterID, cheater.getCards());
+                        rememberSeenCards(game, suggesterID, cheater.getCards());
                     }
                     cheaterNode.set("cards", cheaterCards);
                     cheatersArray.add(cheaterNode);
@@ -1013,7 +1014,7 @@ public class GameServer {
                     singleCard.add(randomCard);
                     for (Player p : game.getPlayers()) {
                         if (!p.getPlayerId().equals(suggesterID) && !p.isEliminated()) {
-                            dbService.saveSeenCards(p.getPlayerId(), singleCard);
+                            rememberSeenCards(game, p.getPlayerId(), singleCard);
                         }
                     }
                 }
@@ -1027,6 +1028,34 @@ public class GameServer {
 
         response.set(PAYLOAD, responsePayload);
         return response;
+    }
+
+    private ArrayNode cardsToArray(List<Card> cards) {
+        ArrayNode cardsArray = mapper.createArrayNode();
+
+        if (cards == null) {
+            return cardsArray;
+        }
+
+        for (Card c : cards) {
+            ObjectNode cardNode = mapper.createObjectNode();
+            cardNode.put(CARD_ID, c.getCardId());
+            cardNode.put("name", c.getName());
+            cardNode.put("type", c.getClass().getSimpleName());
+            cardsArray.add(cardNode);
+        }
+
+        return cardsArray;
+    }
+
+    private void rememberSeenCards(Game game, String playerId, List<Card> cards) {
+        Player player = findPlayer(game, playerId);
+
+        if (player != null) {
+            player.addSeenCards(cards);
+        }
+
+        dbService.saveSeenCards(playerId, cards);
     }
 
     private Player findPlayer(Game game, String playerId) {
