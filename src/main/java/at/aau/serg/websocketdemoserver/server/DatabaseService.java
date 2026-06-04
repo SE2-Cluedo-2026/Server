@@ -32,10 +32,19 @@ public class DatabaseService {
     saveGameState(game);
     savePlayers(game.getPlayers());
     savePlayerCards(game.getPlayers());
+    saveSeenCardsForPlayers(game.getPlayers());
 
     if(!game.getStatus().equals(GameStatus.LOBBY)) {
       saveTurnManager(game.getTurnManager());
       saveCaseFile(game.getCaseFile());
+    }
+  }
+
+  private void saveSeenCardsForPlayers(List<Player> players) {
+    jdbc.update("DELETE FROM seen_cards WHERE game_id = ?", GAME_ID);
+
+    for (Player p : players) {
+      saveSeenCards(p.getPlayerId(), p.getSeenCards());
     }
   }
 
@@ -315,6 +324,26 @@ public class DatabaseService {
         }
       }
       p.setCards(cards);
+      List<Map<String, Object>> seenCardRows = jdbc.queryForList(
+              "SELECT card_id, card_name, card_type FROM seen_cards WHERE player_id = ? AND game_id = ?",
+              p.getPlayerId(), GAME_ID
+      );
+
+      List<Card> seenCards = new ArrayList<>();
+
+      for (Map<String, Object> seenCardRow : seenCardRows) {
+        String cardId = (String) seenCardRow.get("card_id");
+        String cardName = (String) seenCardRow.get("card_name");
+        String cardType = (String) seenCardRow.get("card_type");
+
+        Card seenCard = createCardFromType(cardId, cardName, cardType);
+
+        if (seenCard != null) {
+          seenCards.add(seenCard);
+        }
+      }
+
+      p.setSeenCards(seenCards);
 
       players.add(p);
     }
