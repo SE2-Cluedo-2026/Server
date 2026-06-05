@@ -423,7 +423,8 @@ public class GameServer {
                         cardNode.put("type", card.getClass().getSimpleName());
                         matchingCardsArray.add(cardNode);
                     }
-                    //dbService.saveSeenCards(suggesterID, pendingSuggestion.getMatchingCards());
+                    rememberSeenCards(game, suggesterID, pendingSuggestion.getMatchingCards());
+                    dbService.saveSeenCards(suggesterID, pendingSuggestion.getMatchingCards());
                 } else {
                     responsePayload.put("responderID", "");
                 }
@@ -875,10 +876,7 @@ public class GameServer {
             cancelScheduledEndTurn();
             game.getTurnManager().setPhaseWaitingForSuggestionResponse();
 
-            Suggestion suggestion = new Suggestion(suggester, suspect, room, weapon);
-            SuggestionResolver resolver = new SuggestionResolver();
-
-            Player responder = resolver.resolveSuggestion(suggestion, buildEffectivePlayers(game, suggesterID));
+            this.pendingSuggestion = new Suggestion(suggester, suspect, room, weapon);
 
             response.put("type", GameMessageType.SUGGESTION_REQUEST.toString());
             responsePayload.put("gameID", game.getGameId());
