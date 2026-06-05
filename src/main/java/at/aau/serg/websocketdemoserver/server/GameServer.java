@@ -392,6 +392,53 @@ public class GameServer {
         scheduledEndTurns.put(gameId, future);
     }
 
+    private void scheduleSuggestionResolution(String suggesterID, String gameId) {
+        scheduler.schedule(() -> {
+            try {
+                Game game = lobbyManager.getGame();
+                if (game == null || pendingSuggestion == null) return;
+
+                SuggestionResolver resolver = new SuggestionResolver();
+                Player responder = resolver.resolveSuggestion(
+                        pendingSuggestion,
+                        buildEffectivePlayers(game, suggesterID)
+                );
+
+                ObjectNode response = mapper.createObjectNode();
+                ObjectNode responsePayload = mapper.createObjectNode();
+
+                response.put("type", GameMessageType.SUGGESTION_RESULT.toString());
+                responsePayload.put("suggesterID", suggesterID);
+                responsePayload.put("suspect", pendingSuggestion.getSuspect().toString());
+                responsePayload.put("room", pendingSuggestion.getRoom().toString());
+                responsePayload.put("weapon", pendingSuggestion.getWeapon().toString());
+
+                ArrayNode matchingCardsArray = mapper.createArrayNode();
+                if (responder != null) {
+                    responsePayload.put("responderID", responder.getPlayerId());
+                    for (Card card : pendingSuggestion.getMatchingCards()) {
+                        ObjectNode cardNode = mapper.createObjectNode();
+                        cardNode.put(CARD_ID, card.getCardId());
+                        cardNode.put("name", card.getName());
+                        cardNode.put("type", card.getClass().getSimpleName());
+                        matchingCardsArray.add(cardNode);
+                    }
+                    //dbService.saveSeenCards(suggesterID, pendingSuggestion.getMatchingCards());
+                } else {
+                    responsePayload.put("responderID", "");
+                }
+                responsePayload.set("matchingCards", matchingCardsArray);
+                response.set(PAYLOAD, responsePayload);
+
+                pendingSuggestion = null;
+
+                messagingTemplate.convertAndSend(TOPIC_GAME_RESPONSE, response);
+
+            } catch (Exception e) {
+                logger.warn("Error resolving suggestion after delay", e);
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
 
     private void cancelScheduledEndTurn(String gameId) {
         ScheduledFuture<?> future = scheduledEndTurns.remove(gameId);
@@ -562,9 +609,8 @@ public class GameServer {
             if (!isInRoom && game.getTurnManager().getMovesRemaining() == 0
                     && pos.getPositionType() == PositionType.BOARD) {
                 Field field = game.getBoard().getFields()[pos.getX()][pos.getY()];
-                if (field.getFieldType() == FieldType.HALLWAY_FIELD) {
-                    scheduleAutoEndTurn(0);
-                } else if (field.getFieldType() == FieldType.DOOR_FIELD) {
+
+                if (field.getFieldType() == FieldType.DOOR_FIELD) {
                     game.getTurnManager().setPhaseWaitingForMove();
                     scheduleAutoEndTurn(15);
                 }
@@ -608,6 +654,7 @@ public class GameServer {
             pos.setRoomType(roomType);
             player.setCurrentPosition(pos);
 
+            cancelScheduledEndTurn();
             game.getTurnManager().enterRoom();
 
             dbService.updatePlayerPosition(playerId, player.getCurrentPosition());
@@ -784,8 +831,6 @@ public class GameServer {
         return response;
     }
 
-
-
     public ObjectNode handleSuggestion(JsonNode payload) {
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
@@ -827,6 +872,8 @@ public class GameServer {
                 response.set(PAYLOAD, responsePayload);
                 return response;
             }
+            cancelScheduledEndTurn();
+            game.getTurnManager().setPhaseWaitingForSuggestionResponse();
 
             Suggestion suggestion = new Suggestion(suggester, suspect, room, weapon);
             SuggestionResolver resolver = new SuggestionResolver();
@@ -839,29 +886,10 @@ public class GameServer {
             responsePayload.put(SUSPECT, suspect.toString());
             responsePayload.put("room", room.toString());
             responsePayload.put(WEAPON, weapon.toString());
+            responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
             responsePayload.put("cheatWindowSeconds", 5);
 
-            ArrayNode matchingCardsArray = mapper.createArrayNode();
-
-            if (responder != null) {
-                responsePayload.put("responderID", responder.getPlayerId());
-
-                for (Card card : suggestion.getMatchingCards()) {
-                    ObjectNode cardNode = mapper.createObjectNode();
-                    cardNode.put(CARD_ID, card.getCardId());
-                    cardNode.put("name", card.getName());
-                    cardNode.put("type", card.getClass().getSimpleName());
-                    cardNode.put("seen", true);
-
-                    matchingCardsArray.add(cardNode);
-                }
-                rememberSeenCards(game, suggesterID, suggestion.getMatchingCards());
-            } else {
-                responsePayload.put("responderID", "");
-            }
-
-            responsePayload.set("matchingCards", matchingCardsArray);
-            scheduleAutoEndTurn(5);
+            scheduleSuggestionResolution(suggesterID, game.getGameId());
 
         } catch (IllegalArgumentException e) {
             response.put("type", GameMessageType.SUGGESTION_ERROR.toString());
@@ -934,12 +962,58 @@ public class GameServer {
                 return response;
             }
 
+            if (pendingSuggestion == null) {
+                response.put("type", "CHEAT_ATTEMPT_ERROR");
+                responsePayload.put(REASON, "No active suggestion to cheat on");
+                response.set(PAYLOAD, responsePayload);
+                return response;
+            }
+
+            Player cheater = findPlayer(game, playerId);
+
+            if (cheater == null) {
+                response.put("type", "CHEAT_ATTEMPT_ERROR");
+                responsePayload.put(REASON, PLAYER_NOT_FOUND);
+                response.set(PAYLOAD, responsePayload);
+                return response;
+            }
+
+            if (cheater.isEliminated()) {
+                response.put("type", "CHEAT_ATTEMPT_ERROR");
+                responsePayload.put(REASON, "Eliminated players cannot cheat");
+                response.set(PAYLOAD, responsePayload);
+                return response;
+            }
+
+            if (pendingSuggestion.getSuggester() != null
+                    && pendingSuggestion.getSuggester().getPlayerId().equals(playerId)) {
+                response.put("type", "CHEAT_ATTEMPT_ERROR");
+                responsePayload.put(REASON, "Suggester cannot cheat on their own suggestion");
+                response.set(PAYLOAD, responsePayload);
+                return response;
+            }
+
             game.getCheatManager().registerCheatAttempt(playerId);
             logger.info("[Cheat] Player {} registered a cheat attempt", playerId);
 
+            SuggestionResolver resolver = new SuggestionResolver();
+            List<Card> matchingCards = resolver.getMatchingCards(cheater, pendingSuggestion);
+
+            ArrayNode matchingCardsArray = mapper.createArrayNode();
+
+            for (Card card : matchingCards) {
+                ObjectNode cardNode = mapper.createObjectNode();
+                cardNode.put(CARD_ID, card.getCardId());
+                cardNode.put("name", card.getName());
+                cardNode.put("type", card.getClass().getSimpleName());
+                matchingCardsArray.add(cardNode);
+            }
+
             response.put("type", GameMessageType.CHEAT_ATTEMPT.toString());
             responsePayload.put(PLAYER_ID, playerId);
+            responsePayload.put("targetPlayerId", playerId);
             responsePayload.put("registered", true);
+            responsePayload.set("matchingCards", matchingCardsArray);
 
         } catch (Exception e) {
             response.put("type", "CHEAT_ATTEMPT_ERROR");
@@ -1019,6 +1093,12 @@ public class GameServer {
                     }
                 }
             }
+            game.endTurn();
+
+            responsePayload.put("currentPlayerIndex", game.getTurnManager().getCurrentPlayerId());
+            responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
+            responsePayload.put("targetPlayerId", suggesterID);
+
             cheatManager.clearCheaters();
 
         } catch (Exception e) {
@@ -1028,34 +1108,6 @@ public class GameServer {
 
         response.set(PAYLOAD, responsePayload);
         return response;
-    }
-
-    private ArrayNode cardsToArray(List<Card> cards) {
-        ArrayNode cardsArray = mapper.createArrayNode();
-
-        if (cards == null) {
-            return cardsArray;
-        }
-
-        for (Card c : cards) {
-            ObjectNode cardNode = mapper.createObjectNode();
-            cardNode.put(CARD_ID, c.getCardId());
-            cardNode.put("name", c.getName());
-            cardNode.put("type", c.getClass().getSimpleName());
-            cardsArray.add(cardNode);
-        }
-
-        return cardsArray;
-    }
-
-    private void rememberSeenCards(Game game, String playerId, List<Card> cards) {
-        Player player = findPlayer(game, playerId);
-
-        if (player != null) {
-            player.addSeenCards(cards);
-        }
-
-        dbService.saveSeenCards(playerId, cards);
     }
 
     private Player findPlayer(Game game, String playerId) {
