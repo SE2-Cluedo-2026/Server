@@ -1108,6 +1108,34 @@ public class GameServer {
         return response;
     }
 
+    private ArrayNode cardsToArray(List<Card> cards) {
+        ArrayNode cardsArray = mapper.createArrayNode();
+
+        if (cards == null) {
+            return cardsArray;
+        }
+
+        for (Card c : cards) {
+            ObjectNode cardNode = mapper.createObjectNode();
+            cardNode.put(CARD_ID, c.getCardId());
+            cardNode.put("name", c.getName());
+            cardNode.put("type", c.getClass().getSimpleName());
+            cardsArray.add(cardNode);
+        }
+
+        return cardsArray;
+    }
+
+    private void rememberSeenCards(Game game, String playerId, List<Card> cards) {
+        Player player = findPlayer(game, playerId);
+
+        if (player != null) {
+            player.addSeenCards(cards);
+        }
+
+        dbService.saveSeenCards(playerId, cards);
+    }
+
     private Player findPlayer(Game game, String playerId) {
         for (Player p : game.getPlayers()) {
             if (p.getPlayerId().equals(playerId)) {
