@@ -1052,15 +1052,23 @@ public class GameServer {
                     ObjectNode cheaterNode = mapper.createObjectNode();
                     cheaterNode.put(PLAYER_ID, cheater.getPlayerId());
                     ArrayNode cheaterCards = mapper.createArrayNode();
-                    if (cheater.getCards() != null) {
-                        for (Card card : cheater.getCards()) {
-                            ObjectNode cardNode = mapper.createObjectNode();
-                            cardNode.put(CARD_ID, card.getCardId());
-                            cardNode.put("name", card.getName());
-                            cardNode.put("type", card.getClass().getSimpleName());
-                            cheaterCards.add(cardNode);
-                        }
-                        rememberSeenCards(game, suggesterID, cheater.getCards());
+
+                    if (cheater.getCards() != null && !cheater.getCards().isEmpty()) {
+                        Player suggesterPlayer = findPlayer(game, suggesterID);
+                        List<Card> unseenCards = cheater.getCards().stream().filter(c -> suggesterPlayer == null || !suggesterPlayer.getSeenCards().contains(c)).collect(java.util.stream.Collectors.toList());
+                        List<Card> pool = unseenCards.isEmpty() ? cheater.getCards() : unseenCards;
+                        int randomIndex = (int) (Math.random() * pool.size());
+                        Card randomCard = pool.get(randomIndex);
+
+                        ObjectNode cardNode = mapper.createObjectNode();
+                        cardNode.put(CARD_ID, randomCard.getCardId());
+                        cardNode.put("name", randomCard.getName());
+                        cardNode.put("type", randomCard.getClass().getSimpleName());
+                        cheaterCards.add(cardNode);
+
+                        List<Card> singleCard = new ArrayList<>();
+                        singleCard.add(randomCard);
+                        rememberSeenCards(game, suggesterID, singleCard);
                     }
                     cheaterNode.set("cards", cheaterCards);
                     cheatersArray.add(cheaterNode);
