@@ -14,9 +14,11 @@ import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
 import at.aau.serg.websocketdemoserver.model.enums.RoomType;
 import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
 import at.aau.serg.websocketdemoserver.model.enums.WeaponType;
+import at.aau.serg.websocketdemoserver.model.cards.Card;
 import at.aau.serg.websocketdemoserver.model.game.CaseFile;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
+import at.aau.serg.websocketdemoserver.model.game.Suggestion;
 import at.aau.serg.websocketdemoserver.model.game.TurnManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.util.List;
@@ -676,10 +679,6 @@ class GameServerTest {
         when(game.getBoard()).thenReturn(board);
         when(board.getFields()).thenReturn(fields);
 
-        when(game.getGameId()).thenReturn("game-1");
-        when(game.getCurrentPlayer()).thenReturn(player);
-        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
-
         ObjectNode response = gameServer.move(
                 mapper.readTree("{\"playerId\":\"player1\",\"position\":\"0,0\"}")
         );
@@ -687,7 +686,8 @@ class GameServerTest {
         assertEquals(GameMessageType.MOVE.toString(), response.get("type").textValue());
 
         verify(turnManager).decrementMove(false);
-        verify(game, timeout(1000)).endTurn();
+        verify(turnManager, never()).setPhaseWaitingForMove();
+        verify(game, never()).endTurn();
     }
 
     @Test
@@ -725,6 +725,7 @@ class GameServerTest {
         when(lobbyManager.getGame()).thenReturn(game);
         when(game.getPlayers()).thenReturn(List.of(player));
         when(game.getTurnManager()).thenReturn(turnManager);
+        when(game.getGameId()).thenReturn("game-1");
         when(turnManager.getPhase()).thenReturn(TurnPhase.IN_ROOM);
 
         ObjectNode response = gameServer.enterRoom(
@@ -1361,10 +1362,24 @@ class GameServerTest {
     }
 
     @Test
-    void handleCheatAttempt_registersCheatAttemptSuccessfully() throws Exception {
+    void handleCheatAttempt_registersCheatAttemptSuccessfullyWithMatchingCards() throws Exception {
         Game game = Game.getINSTANCE();
         game.getCheatManager().clearCheaters();
         ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+
+        Player suggester = new Player("suggesterX");
+
+        Player cheater = new Player("player1");
+        cheater.setCards(List.of(
+                new SuspectCard("s1", "Mrs Pink", CharacterType.MRS_PINK),
+                new RoomCard("r1", "Kitchen", RoomType.KITCHEN),
+                new WeaponCard("w1", "Knife", WeaponType.KNIFE),
+                new SuspectCard("s2", "Dr Blue", CharacterType.DR_BLUE)
+        ));
+
+        ReflectionTestUtils.setField(game, "players", List.of(suggester, cheater));
+        ReflectionTestUtils.setField(gameServer, "pendingSuggestion",
+                new Suggestion(suggester, CharacterType.MRS_PINK, RoomType.KITCHEN, WeaponType.KNIFE));
 
         when(lobbyManager.getGame()).thenReturn(game);
 
@@ -1376,6 +1391,22 @@ class GameServerTest {
         assertEquals("player1", response.get("payload").get("playerId").textValue());
         assertTrue(response.get("payload").get("registered").asBoolean());
         assertTrue(game.getCheatManager().hasCheated("player1"));
+
+        JsonNode matchingCards = response.get("payload").get("matchingCards");
+        assertNotNull(matchingCards);
+        assertEquals(3, matchingCards.size());
+
+        assertEquals("s1", matchingCards.get(0).get("cardId").textValue());
+        assertEquals("Mrs Pink", matchingCards.get(0).get("name").textValue());
+        assertEquals("SuspectCard", matchingCards.get(0).get("type").textValue());
+
+        assertEquals("r1", matchingCards.get(1).get("cardId").textValue());
+        assertEquals("Kitchen", matchingCards.get(1).get("name").textValue());
+        assertEquals("RoomCard", matchingCards.get(1).get("type").textValue());
+
+        assertEquals("w1", matchingCards.get(2).get("cardId").textValue());
+        assertEquals("Knife", matchingCards.get(2).get("name").textValue());
+        assertEquals("WeaponCard", matchingCards.get(2).get("type").textValue());
     }
 
     @Test
@@ -1384,12 +1415,100 @@ class GameServerTest {
         game.getCheatManager().clearCheaters();
         ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
 
+        Player suggester = new Player("suggesterX");
+        Player cheater = new Player("player1");
+        ReflectionTestUtils.setField(game, "players", List.of(suggester, cheater));
+        ReflectionTestUtils.setField(gameServer, "pendingSuggestion",
+                new Suggestion(suggester, CharacterType.MRS_PINK, RoomType.KITCHEN, WeaponType.KNIFE));
+
         when(lobbyManager.getGame()).thenReturn(game);
 
         gameServer.handleCheatAttempt(mapper.readTree("{\"playerId\":\"player1\"}"));
         gameServer.handleCheatAttempt(mapper.readTree("{\"playerId\":\"player1\"}"));
 
         assertEquals(1, game.getCheatManager().getCheaterIds().size());
+    }
+
+    @Test
+    void handleCheatAttempt_returnsErrorWhenNoPendingSuggestion() throws Exception {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+        ReflectionTestUtils.setField(gameServer, "pendingSuggestion", null);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        ObjectNode response = gameServer.handleCheatAttempt(
+                mapper.readTree("{\"playerId\":\"player1\"}")
+        );
+
+        assertEquals("CHEAT_ATTEMPT_ERROR", response.get("type").textValue());
+        assertEquals("No active suggestion to cheat on", response.get("payload").get("reason").textValue());
+    }
+
+    @Test
+    void handleCheatAttempt_returnsErrorWhenPlayerNotFound() throws Exception {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+
+        Player suggester = new Player("suggesterX");
+        ReflectionTestUtils.setField(game, "players", List.of(suggester));
+        ReflectionTestUtils.setField(gameServer, "pendingSuggestion",
+                new Suggestion(suggester, CharacterType.MRS_PINK, RoomType.KITCHEN, WeaponType.KNIFE));
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        ObjectNode response = gameServer.handleCheatAttempt(
+                mapper.readTree("{\"playerId\":\"player1\"}")
+        );
+
+        assertEquals("CHEAT_ATTEMPT_ERROR", response.get("type").textValue());
+        assertEquals("Player not found", response.get("payload").get("reason").textValue());
+    }
+
+    @Test
+    void handleCheatAttempt_returnsErrorWhenCheaterIsEliminated() throws Exception {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+
+        Player suggester = new Player("suggesterX");
+        Player cheater = new Player("player1");
+        cheater.eliminate();
+        ReflectionTestUtils.setField(game, "players", List.of(suggester, cheater));
+        ReflectionTestUtils.setField(gameServer, "pendingSuggestion",
+                new Suggestion(suggester, CharacterType.MRS_PINK, RoomType.KITCHEN, WeaponType.KNIFE));
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        ObjectNode response = gameServer.handleCheatAttempt(
+                mapper.readTree("{\"playerId\":\"player1\"}")
+        );
+
+        assertEquals("CHEAT_ATTEMPT_ERROR", response.get("type").textValue());
+        assertEquals("Eliminated players cannot cheat", response.get("payload").get("reason").textValue());
+    }
+
+    @Test
+    void handleCheatAttempt_returnsErrorWhenSuggesterTriesToCheatOnOwnSuggestion() throws Exception {
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+        ReflectionTestUtils.setField(game, "status", GameStatus.RUNNING);
+
+        Player suggester = new Player("player1");
+        ReflectionTestUtils.setField(game, "players", List.of(suggester));
+        ReflectionTestUtils.setField(gameServer, "pendingSuggestion",
+                new Suggestion(suggester, CharacterType.MRS_PINK, RoomType.KITCHEN, WeaponType.KNIFE));
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        ObjectNode response = gameServer.handleCheatAttempt(
+                mapper.readTree("{\"playerId\":\"player1\"}")
+        );
+
+        assertEquals("CHEAT_ATTEMPT_ERROR", response.get("type").textValue());
+        assertEquals("Suggester cannot cheat on their own suggestion", response.get("payload").get("reason").textValue());
     }
 
     @Test
@@ -1573,5 +1692,165 @@ class GameServerTest {
         assertEquals(GameMessageType.CHEAT_RESULT.toString(), response.get("type").textValue());
         assertFalse(response.get("payload").get("cheatDetected").asBoolean());
         assertFalse(response.get("payload").has("revealedCard"));
+    }
+
+    private ScheduledExecutorService synchronousScheduler() {
+        ScheduledExecutorService mockScheduler = mock(ScheduledExecutorService.class);
+        ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
+
+        doAnswer(invocation -> {
+            Runnable task = invocation.getArgument(0);
+            task.run();
+            return mockFuture;
+        }).when(mockScheduler).schedule(any(Runnable.class), anyLong(), any());
+
+        return mockScheduler;
+    }
+
+    @Test
+    void privateScheduledEndTurnTaskReturnsEarlyWhenGameBecomesNull() {
+        ReflectionTestUtils.setField(gameServer, "scheduler", synchronousScheduler());
+
+        when(lobbyManager.getGame()).thenReturn(null);
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", "game-1", "player1", 5);
+
+        verifyNoInteractions(messagingTemplate);
+    }
+
+    @Test
+    void privateScheduledEndTurnTaskReturnsEarlyWhenGameIdChanged() {
+        ReflectionTestUtils.setField(gameServer, "scheduler", synchronousScheduler());
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getCurrentPlayer()).thenReturn(new Player("player1"));
+        when(game.getGameId()).thenReturn("different-game");
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", "game-1", "player1", 5);
+
+        verifyNoInteractions(messagingTemplate);
+    }
+
+    @Test
+    void privateScheduledEndTurnTaskReturnsEarlyWhenCurrentPlayerChanged() {
+        ReflectionTestUtils.setField(gameServer, "scheduler", synchronousScheduler());
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getGameId()).thenReturn("game-1");
+        when(game.getCurrentPlayer()).thenReturn(new Player("someone-else"));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", "game-1", "player1", 5);
+
+        verifyNoInteractions(messagingTemplate);
+    }
+
+    @Test
+    void privateScheduledEndTurnTaskEndsTurnAndSendsMessageWhenStillCurrentPlayer() {
+        ReflectionTestUtils.setField(gameServer, "scheduler", synchronousScheduler());
+
+        Game game = mock(Game.class);
+        Player currentPlayer = new Player("player1");
+        TurnManager turnManager = mock(TurnManager.class);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getGameId()).thenReturn("game-1");
+        when(game.getCurrentPlayer()).thenReturn(currentPlayer);
+        when(game.getTurnManager()).thenReturn(turnManager);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+        when(turnManager.getCurrentPlayerId()).thenReturn(1);
+        when(turnManager.getDiceValue()).thenReturn(0);
+        when(turnManager.getPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", "game-1", "player1", 5);
+
+        verify(game).endTurn();
+        verify(messagingTemplate).convertAndSend(eq(TOPIC_GAME_RESPONSE), any(ObjectNode.class));
+    }
+
+    @Test
+    void privateScheduleSuggestionResolutionReturnsEarlyWhenNoPendingSuggestion() {
+        ReflectionTestUtils.setField(gameServer, "scheduler", synchronousScheduler());
+        ReflectionTestUtils.setField(gameServer, "pendingSuggestion", null);
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleSuggestionResolution", "player1", "game-1");
+
+        verifyNoInteractions(messagingTemplate);
+    }
+
+    @Test
+    void privateScheduleSuggestionResolutionResolvesWithResponderAndRemembersSeenCards() {
+        ReflectionTestUtils.setField(gameServer, "scheduler", synchronousScheduler());
+
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+
+        Player suggester = new Player("player1");
+        Player responder = new Player("player2");
+        responder.setCards(List.of(new RoomCard("r1", "Kitchen", RoomType.KITCHEN)));
+
+        ReflectionTestUtils.setField(game, "players", List.of(suggester, responder));
+        ReflectionTestUtils.setField(gameServer, "pendingSuggestion",
+                new Suggestion(suggester, CharacterType.MRS_PINK, RoomType.KITCHEN, WeaponType.KNIFE));
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleSuggestionResolution", "player1", "game-1");
+
+        verify(dbService, times(2)).saveSeenCards(eq("player1"), anyList());
+        verify(messagingTemplate).convertAndSend(eq(TOPIC_GAME_RESPONSE), any(ObjectNode.class));
+        assertNull(ReflectionTestUtils.getField(gameServer, "pendingSuggestion"));
+        assertTrue(suggester.getSeenCards().stream().anyMatch(c -> c.getCardId().equals("r1")));
+    }
+
+    @Test
+    void privateScheduleSuggestionResolutionHandlesNoResponder() {
+        ReflectionTestUtils.setField(gameServer, "scheduler", synchronousScheduler());
+
+        Game game = Game.getINSTANCE();
+        game.getCheatManager().clearCheaters();
+
+        Player suggester = new Player("player1");
+        ReflectionTestUtils.setField(game, "players", List.of(suggester));
+        ReflectionTestUtils.setField(gameServer, "pendingSuggestion",
+                new Suggestion(suggester, CharacterType.MRS_PINK, RoomType.KITCHEN, WeaponType.KNIFE));
+
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleSuggestionResolution", "player1", "game-1");
+
+        verify(dbService, never()).saveSeenCards(anyString(), anyList());
+        verify(messagingTemplate).convertAndSend(eq(TOPIC_GAME_RESPONSE), any(ObjectNode.class));
+        assertNull(ReflectionTestUtils.getField(gameServer, "pendingSuggestion"));
+    }
+
+    @Test
+    void privateScheduleSuggestionResolutionLogsWarningOnException() {
+        ReflectionTestUtils.setField(gameServer, "scheduler", synchronousScheduler());
+        ReflectionTestUtils.setField(gameServer, "pendingSuggestion",
+                new Suggestion(new Player("player1"), CharacterType.MRS_PINK, RoomType.KITCHEN, WeaponType.KNIFE));
+
+        when(lobbyManager.getGame()).thenThrow(new RuntimeException("resolve error"));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleSuggestionResolution", "player1", "game-1");
+
+        verifyNoInteractions(messagingTemplate);
+    }
+
+    @Test
+    void privateCardsToArrayHandlesNullAndPopulatedLists() {
+        ArrayNode emptyArray = (ArrayNode) ReflectionTestUtils.invokeMethod(gameServer, "cardsToArray", (List<Card>) null);
+        assertEquals(0, emptyArray.size());
+
+        List<Card> cards = List.of(new RoomCard("r1", "Kitchen", RoomType.KITCHEN));
+        ArrayNode populatedArray = (ArrayNode) ReflectionTestUtils.invokeMethod(gameServer, "cardsToArray", cards);
+        assertEquals(1, populatedArray.size());
+        assertEquals("r1", populatedArray.get(0).get("cardId").textValue());
+        assertEquals("Kitchen", populatedArray.get(0).get("name").textValue());
+        assertEquals("RoomCard", populatedArray.get(0).get("type").textValue());
     }
 }
