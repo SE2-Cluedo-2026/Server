@@ -165,6 +165,10 @@ public class WebSocketEventListener {
                 TOPIC_GAME_RESPONSE, continueMsg);
     }
 
+    public String getPlayerIdForSession(String sessionId) {
+        return sessionToPlayer.get(sessionId);
+    }
+
     public void removePlayer(String playerId) {
         playerToCurrentSession.remove(playerId);
         disconnectTimers.remove(playerId);

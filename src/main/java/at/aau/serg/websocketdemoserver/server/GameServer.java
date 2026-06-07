@@ -77,6 +77,18 @@ public class GameServer {
         this.messagingTemplate = messagingTemplate;
         this.eventListener = eventListener;
     }
+    private boolean isAuthorized(String sessionId, String playerId) {
+        String registeredId = eventListener.getPlayerIdForSession(sessionId);
+        return playerId.equals(registeredId);
+    }
+    private ObjectNode authError(String type) {
+        ObjectNode response = mapper.createObjectNode();
+        ObjectNode responsePayload = mapper.createObjectNode();
+        response.put("type", type);
+        responsePayload.put(REASON, "Unauthorized: you can only act on your own behalf");
+        response.set(PAYLOAD, responsePayload);
+        return response;
+    }
 
     public ObjectNode joinLobby(JsonNode payload) {
         String playerKey = payload.get("playerKey").asText();
@@ -512,7 +524,11 @@ public class GameServer {
         return response;
     }
 
-    public ObjectNode rollDice(JsonNode payload) {
+    public ObjectNode rollDice(JsonNode payload, String sessionId) {
+        String playerId = payload.get(PLAYER_ID).asText();
+        if (!isAuthorized(sessionId, playerId)) {
+            return authError(ROLL_DICE_ERROR);
+        }
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
 
@@ -564,12 +580,16 @@ public class GameServer {
         return response;
     }
 
-    public ObjectNode move(JsonNode payload) {
+    public ObjectNode move(JsonNode payload , String sessionId) {
+        String playerId = payload.get(PLAYER_ID).asText();
+        if (!isAuthorized(sessionId, playerId)) {
+            return authError("MOVE_ERROR");
+        }
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
 
         try {
-            String playerId = payload.get(PLAYER_ID).asText();
+           // String playerId = payload.get(PLAYER_ID).asText();
             String position = payload.get(POSITION).asText();
             Game game = lobbyManager.getGame();
 
@@ -633,12 +653,16 @@ public class GameServer {
         return response;
     }
 
-    public ObjectNode enterRoom(JsonNode payload) {
+    public ObjectNode enterRoom(JsonNode payload,  String sessionId) {
+        String playerId = payload.get(PLAYER_ID).asText();
+        if (!isAuthorized(sessionId, playerId)) {
+            return authError(ENTER_ROOM_ERROR);
+        }
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
 
         try {
-            String playerId = payload.get(PLAYER_ID).asText();
+           // String playerId = payload.get(PLAYER_ID).asText();
             String roomId = payload.get("roomId").asText();
             Game game = lobbyManager.getGame();
 
@@ -690,12 +714,16 @@ public class GameServer {
             RoomType.BILLIARDROOM, RoomType.KITCHEN,
             RoomType.KITCHEN, RoomType.BILLIARDROOM);
 
-    public ObjectNode takeHiddenWay(JsonNode payload) {
+    public ObjectNode takeHiddenWay(JsonNode payload, String sessionId ) {
+        String playerId = payload.get(PLAYER_ID).asText();
+        if (!isAuthorized(sessionId, playerId)) {
+            return authError(HIDDEN_WAY_ERROR);
+        }
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
 
         try {
-            String playerId = payload.get(PLAYER_ID).asText();
+          //  String playerId = payload.get(PLAYER_ID).asText();
             Game game = lobbyManager.getGame();
 
             Player player = findPlayer(game, playerId);
@@ -746,12 +774,17 @@ public class GameServer {
         return response;
     }
 
-    public ObjectNode handleAccusation(JsonNode payload) {
+    public ObjectNode handleAccusation(JsonNode payload, String sessionId) {
+        String playerId = payload.get("accuserID").asText();
+        if (!isAuthorized(sessionId, playerId)) {
+            return authError(ACCUSATION_ERROR);
+        }
+        String accuserID = playerId;
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
 
         try {
-            String accuserID = payload.get("accuserID").asText();
+           // String accuserID = payload.get("accuserID").asText();
             CharacterType suspect = CharacterType.valueOf(payload.get(SUSPECT).asText());
             RoomType room = RoomType.valueOf(payload.get("room").asText());
             WeaponType weapon = WeaponType.valueOf(payload.get(WEAPON).asText());
@@ -832,12 +865,19 @@ public class GameServer {
         return response;
     }
 
-    public ObjectNode handleSuggestion(JsonNode payload) {
+
+
+    public ObjectNode handleSuggestion(JsonNode payload,String sessionId) {
+        String playerId = payload.get("suggesterID").asText();
+        if (!isAuthorized(sessionId, playerId)) {
+            return authError(GameMessageType.SUGGESTION_ERROR.toString());
+        }
+        String suggesterID = playerId;
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
 
         try {
-            String suggesterID = payload.get("suggesterID").asText();
+          //  String suggesterID = payload.get("suggesterID").asText();
             CharacterType suspect = CharacterType.valueOf(payload.get(SUSPECT).asText());
             RoomType room = RoomType.valueOf(payload.get("room").asText());
             WeaponType weapon = WeaponType.valueOf(payload.get(WEAPON).asText());
