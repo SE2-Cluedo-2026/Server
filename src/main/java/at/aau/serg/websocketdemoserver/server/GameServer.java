@@ -1043,6 +1043,9 @@ public class GameServer {
 
             responsePayload.put("suggesterID", suggesterID);
 
+            response.put("type", GameMessageType.CHEAT_RESULT.toString());
+            responsePayload.put("cheatPressed", cheatPressed);
+
             if (cheatPressed && !realCheaters.isEmpty()) {
                 response.put("type", GameMessageType.CHEAT_RESULT.toString());
                 responsePayload.put("cheatDetected", true);
@@ -1075,8 +1078,7 @@ public class GameServer {
                 }
                 responsePayload.set("cheaters", cheatersArray);
 
-            } else {
-                response.put("type", GameMessageType.CHEAT_RESULT.toString());
+            } else if (cheatPressed && realCheaters.isEmpty()) {
                 responsePayload.put("cheatDetected", false);
 
                 Player suggester = findPlayer(game, suggesterID);
@@ -1098,6 +1100,8 @@ public class GameServer {
                         }
                     }
                 }
+            } else {
+                responsePayload.put("cheatDetected", false);
             }
             game.endTurn();
 
