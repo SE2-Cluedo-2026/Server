@@ -533,7 +533,6 @@ public class GameServer {
         ObjectNode responsePayload = mapper.createObjectNode();
 
         try {
-            String playerId = payload.get(PLAYER_ID).asText();
             Game game = lobbyManager.getGame();
 
             if (!game.isRunning()) {
