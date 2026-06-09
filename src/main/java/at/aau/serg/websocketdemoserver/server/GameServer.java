@@ -984,12 +984,16 @@ public class GameServer {
         return effectivePlayers;
     }
 
-    public ObjectNode handleCheatAttempt(JsonNode payload) {
+    public ObjectNode handleCheatAttempt(JsonNode payload,String sessionId) {
+        String playerId = payload.get(PLAYER_ID).asText();
+        if (!isAuthorized(sessionId, playerId)) {
+            return authError("CHEAT_ATTEMPT_ERROR");
+        }
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
 
         try {
-            String playerId = payload.get(PLAYER_ID).asText();
+           // String playerId = payload.get(PLAYER_ID).asText();
             Game game = lobbyManager.getGame();
 
             if (!game.isRunning()) {
@@ -1061,12 +1065,16 @@ public class GameServer {
         return response;
     }
 
-    public ObjectNode handleCheatButtonPressed(JsonNode payload) {
+    public ObjectNode handleCheatButtonPressed(JsonNode payload, String sessionId ) {
+        String suggesterID = payload.get("suggesterID").asText();
+        if (!isAuthorized(sessionId, suggesterID)) {
+            return authError("CHEAT_RESULT_ERROR");
+        }
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
 
         try {
-            String suggesterID = payload.get("suggesterID").asText();
+           // String suggesterID = payload.get("suggesterID").asText();
             boolean cheatPressed = payload.has("cheatPressed") && payload.get("cheatPressed").asBoolean();
 
             Game game = lobbyManager.getGame();
