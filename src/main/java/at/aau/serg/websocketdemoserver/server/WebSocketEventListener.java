@@ -178,10 +178,13 @@ public class WebSocketEventListener {
             timer.cancel(false);
         }
 
+        boolean waitingForPlayer = Game.getINSTANCE().getPlayers().stream().anyMatch(p -> !p.isActive());
+
         ObjectNode continueMsg = mapper.createObjectNode();
         ObjectNode continuePayload = mapper.createObjectNode();
         continueMsg.put("type", "CONTINUE_GAME");
         continuePayload.put("rejoinedPlayerId", playerId);
+        continuePayload.put("waitingForPlayer", waitingForPlayer);
         continueMsg.set(PAYLOAD_KEY, continuePayload);
 
         messagingTemplate.convertAndSend(

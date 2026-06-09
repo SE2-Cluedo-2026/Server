@@ -227,6 +227,9 @@ public class GameServer {
         }
         responsePayload.set("eliminatedPlayers", eliminatedArray);
 
+        boolean waitingForPlayer = game.getPlayers().stream().anyMatch(p -> !p.isActive());
+        responsePayload.put("waitingForPlayer", waitingForPlayer);
+
         response.set(PAYLOAD, responsePayload);
         return response;
     }
