@@ -95,6 +95,12 @@ public class WebSocketEventListener {
     }
 
     private void processDisconnectTimeout(String playerId, Game game) {
+        if (game.getStatus() != GameStatus.RUNNING) {
+            game.leaveLobby(playerId);
+            playerToCurrentSession.remove(playerId);
+            logger.info("[Disconnect] Game no longer running, skipping timeout for {}", playerId);
+            return;
+        }
         Player missing = null;
         for (Player p : game.getPlayers()) {
             if (p.getPlayerId().equals(playerId)) {
