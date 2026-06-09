@@ -70,7 +70,24 @@ public class WebSocketEventListener {
 
         Game game = Game.getINSTANCE();
 
-        if (game.getStatus() != GameStatus.RUNNING) return;
+        if (game.getStatus() != GameStatus.RUNNING) {
+            // Lobby: direkt aus der Spielerliste entfernen und alle Clients benachrichtigen
+            if (playerId != null) {
+                boolean removed = game.leaveLobby(playerId);
+                playerToCurrentSession.remove(playerId);
+                logger.info("[Disconnect] Lobby player {} removed on disconnect", playerId);
+                if (removed) {
+                    ObjectNode leaveMsg = mapper.createObjectNode();
+                    ObjectNode leavePayload = mapper.createObjectNode();
+                    leaveMsg.put("type", "PLAYER_REMOVED");
+                    leavePayload.put("playerId", playerId);
+                    leaveMsg.set(PAYLOAD_KEY, leavePayload);
+                    messagingTemplate.convertAndSend("/topic/lobby-response", leaveMsg);
+                    logger.info("[Disconnect] Broadcast PLAYER_REMOVED for {}", playerId);
+                }
+            }
+            return;
+        }
 
         for (Player p : game.getPlayers()) {
             if (p.getPlayerId().equals(playerId)) {

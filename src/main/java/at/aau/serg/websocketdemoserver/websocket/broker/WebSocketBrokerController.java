@@ -59,7 +59,11 @@ public class WebSocketBrokerController {
             }
             case LEAVE_LOBBY -> {
                 String playerId = payload.get("playerId").asText();
-                if (!playerId.equals(eventListener.getPlayerIdForSession(sessionId))) {
+                String sessionPlayer = eventListener.getPlayerIdForSession(sessionId);
+                // sessionPlayer can be null if the disconnect handler already removed the
+                // session mapping concurrently (race condition when app closes from lobby).
+                // Only reject if the session is explicitly mapped to a DIFFERENT player.
+                if (sessionPlayer != null && !playerId.equals(sessionPlayer)) {
                     return unauthorizedError("LEAVE_ERROR");
                 }
                 return gameServer.leaveLobby(payload);
