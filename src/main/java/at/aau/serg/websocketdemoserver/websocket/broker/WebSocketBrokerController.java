@@ -100,10 +100,10 @@ public class WebSocketBrokerController {
                 return gameServer.handleSuggestion(payload, sessionId);
             }
             case CHEAT_ATTEMPT -> {
-                return gameServer.handleCheatAttempt(payload);
+                return gameServer.handleCheatAttempt(payload,sessionId);
             }
             case CHEAT_BUTTON_PRESSED -> {
-                return gameServer.handleCheatButtonPressed(payload);
+                return gameServer.handleCheatButtonPressed(payload, sessionId);
             }
         }
         return null;
