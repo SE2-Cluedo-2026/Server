@@ -15,6 +15,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.dao.DataAccessException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -23,197 +26,280 @@ import org.springframework.stereotype.Service;
 public class DatabaseService {
   private static final String GAME_ID = "game1";
   private final JdbcTemplate jdbc;
-
+  private static final Logger logger = LoggerFactory.getLogger(DatabaseService.class);
   public DatabaseService(JdbcTemplate jdbc) {
     this.jdbc = jdbc;
   }
 
   public void saveGame(Game game) {
-    saveGameState(game);
-    savePlayers(game.getPlayers());
-    savePlayerCards(game.getPlayers());
-    saveSeenCardsForPlayers(game.getPlayers());
+    try {
+      saveGameState(game);
+      savePlayers(game.getPlayers());
+      savePlayerCards(game.getPlayers());
+      saveSeenCardsForPlayers(game.getPlayers());
 
-    if(!game.getStatus().equals(GameStatus.LOBBY)) {
-      saveTurnManager(game.getTurnManager());
-      saveCaseFile(game.getCaseFile());
+      if(!game.getStatus().equals(GameStatus.LOBBY)) {
+        saveTurnManager(game.getTurnManager());
+        saveCaseFile(game.getCaseFile());
+      }
+    } catch (DataAccessException e) {
+        logger.error("[DB] saveGame failed", e);
+        throw e;
     }
+
   }
 
   private void saveSeenCardsForPlayers(List<Player> players) {
-    jdbc.update("DELETE FROM seen_cards WHERE game_id = ?", GAME_ID);
-
-    for (Player p : players) {
-      saveSeenCards(p.getPlayerId(), p.getSeenCards());
+    try {
+      jdbc.update("DELETE FROM seen_cards WHERE game_id = ?", GAME_ID);
+      for (Player p : players) {
+        saveSeenCards(p.getPlayerId(), p.getSeenCards());
+      }
+    }catch (DataAccessException e) {
+      logger.error("[DB] saveSeenCardsForPlayers failed", e);
+      throw e;
     }
   }
 
   private void saveGameState(Game game) {
-    jdbc.update(
-            "INSERT INTO game (game_id, status, current_phase) VALUES (?, ?, ?) " +
-                    "ON DUPLICATE KEY UPDATE status=?, current_phase=?",
-            GAME_ID, game.getStatus().toString(), game.getCurrentPhase().toString(),
-            game.getStatus().toString(), game.getCurrentPhase().toString()
-    );
+    try {
+      jdbc.update(
+              "INSERT INTO game (game_id, status, current_phase) VALUES (?, ?, ?) " +
+                      "ON DUPLICATE KEY UPDATE status=?, current_phase=?",
+              GAME_ID, game.getStatus().toString(), game.getCurrentPhase().toString(),
+              game.getStatus().toString(), game.getCurrentPhase().toString()
+      );
+    } catch (DataAccessException e) {
+      logger.error("[DB] saveGameState failed", e);
+      throw e;
+    }
+
   }
 
   private void saveTurnManager(TurnManager tm) {
-    jdbc.update(
-            "INSERT INTO turn_manager (game_id, current_player_id, dice_value, phase) VALUES (?, ?, ?, ?) " +
-                    "ON DUPLICATE KEY UPDATE current_player_id=?, dice_value=?, phase=?",
-            GAME_ID, tm.getCurrentPlayerId(), tm.getDiceValue(), tm.getPhase().toString(),
-            tm.getCurrentPlayerId(), tm.getDiceValue(), tm.getPhase().toString()
-    );
+    try {
+      jdbc.update(
+              "INSERT INTO turn_manager (game_id, current_player_id, dice_value, phase) VALUES (?, ?, ?, ?) " +
+                      "ON DUPLICATE KEY UPDATE current_player_id=?, dice_value=?, phase=?",
+              GAME_ID, tm.getCurrentPlayerId(), tm.getDiceValue(), tm.getPhase().toString(),
+              tm.getCurrentPlayerId(), tm.getDiceValue(), tm.getPhase().toString()
+      );
+    } catch (DataAccessException e) {
+      logger.error("[DB] saveTurnManager failed", e);
+      throw e;
+    }
+
   }
 
   private void saveCaseFile(CaseFile cf) {
-    jdbc.update(
-            "INSERT INTO case_file (game_id, suspect_card_id, suspect_name, room_card_id, room_name, weapon_card_id, weapon_name) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?) " +
-                    "ON DUPLICATE KEY UPDATE suspect_card_id=?, suspect_name=?, room_card_id=?, room_name=?, weapon_card_id=?, weapon_name=?",
-            GAME_ID,
-            cf.getSuspectCard().getCardId(), cf.getSuspectCard().getName(),
-            cf.getRoomCard().getCardId(), cf.getRoomCard().getName(),
-            cf.getWeaponCard().getCardId(), cf.getWeaponCard().getName(),
-            cf.getSuspectCard().getCardId(), cf.getSuspectCard().getName(),
-            cf.getRoomCard().getCardId(), cf.getRoomCard().getName(),
-            cf.getWeaponCard().getCardId(), cf.getWeaponCard().getName()
-    );
+    try {
+
+      jdbc.update(
+              "INSERT INTO case_file (game_id, suspect_card_id, suspect_name, room_card_id, room_name, weapon_card_id, weapon_name) " +
+                      "VALUES (?, ?, ?, ?, ?, ?, ?) " +
+                      "ON DUPLICATE KEY UPDATE suspect_card_id=?, suspect_name=?, room_card_id=?, room_name=?, weapon_card_id=?, weapon_name=?",
+              GAME_ID,
+              cf.getSuspectCard().getCardId(), cf.getSuspectCard().getName(),
+              cf.getRoomCard().getCardId(), cf.getRoomCard().getName(),
+              cf.getWeaponCard().getCardId(), cf.getWeaponCard().getName(),
+              cf.getSuspectCard().getCardId(), cf.getSuspectCard().getName(),
+              cf.getRoomCard().getCardId(), cf.getRoomCard().getName(),
+              cf.getWeaponCard().getCardId(), cf.getWeaponCard().getName()
+      );
+    }  catch (DataAccessException e) {
+      logger.error("[DB] saveCaseFile failed", e);
+      throw e;
+    }
   }
 
   private void savePlayers(List<Player> players) {
-    jdbc.update("DELETE FROM player_card WHERE game_id = ?", GAME_ID);
-    jdbc.update("DELETE FROM seen_cards WHERE game_id = ?", GAME_ID);
-    jdbc.update("DELETE FROM player WHERE game_id = ?", GAME_ID);
-    for (Player p : players) {
-      String posType = null;
-      Integer posX = null;
-      Integer posY = null;
-      String posRoom = null;
-      if (p.getCurrentPosition() != null) {
-        posType = p.getCurrentPosition().getPositionType().toString();
-        if (p.getCurrentPosition().getPositionType() == PositionType.BOARD) {
-          posX = p.getCurrentPosition().getX();
-          posY = p.getCurrentPosition().getY();
-        } else {
-          posRoom = p.getCurrentPosition().getRoom().toString();
+    try {
+      jdbc.update("DELETE FROM player_card WHERE game_id = ?", GAME_ID);
+      jdbc.update("DELETE FROM seen_cards WHERE game_id = ?", GAME_ID);
+      jdbc.update("DELETE FROM player WHERE game_id = ?", GAME_ID);
+      for (Player p : players) {
+        String posType = null;
+        Integer posX = null;
+        Integer posY = null;
+        String posRoom = null;
+        if (p.getCurrentPosition() != null) {
+          posType = p.getCurrentPosition().getPositionType().toString();
+          if (p.getCurrentPosition().getPositionType() == PositionType.BOARD) {
+            posX = p.getCurrentPosition().getX();
+            posY = p.getCurrentPosition().getY();
+          } else {
+            posRoom = p.getCurrentPosition().getRoom().toString();
+          }
         }
+        jdbc.update(
+                "INSERT INTO player (player_id, game_id, character_type, ready, active, eliminated, cheat_used, accusation_used, " +
+                        "position_type, position_x, position_y, position_room) " +
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                p.getPlayerId(), GAME_ID,
+                p.getCharacter() != null ? p.getCharacter().toString() : null,
+                p.isReady(), p.isActive(), p.isEliminated(), p.isCheatUsed(), p.isAccusationUsed(),
+                posType, posX, posY, posRoom
+        );
       }
-      jdbc.update(
-              "INSERT INTO player (player_id, game_id, character_type, ready, active, eliminated, cheat_used, accusation_used, " +
-                      "position_type, position_x, position_y, position_room) " +
-                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-              p.getPlayerId(), GAME_ID,
-              p.getCharacter() != null ? p.getCharacter().toString() : null,
-              p.isReady(), p.isActive(), p.isEliminated(), p.isCheatUsed(), p.isAccusationUsed(),
-              posType, posX, posY, posRoom
-      );
+    } catch (DataAccessException e) {
+      logger.error("[DB] savePlayers failed", e);
+      throw e;
     }
+
   }
 
   private void savePlayerCards(List<Player> players) {
-    jdbc.update("DELETE FROM player_card WHERE game_id = ?", GAME_ID);
+    try {
+      jdbc.update("DELETE FROM player_card WHERE game_id = ?", GAME_ID);
 
-    for (Player p : players) {
-      if (p.getCards() == null) {
-        continue;
-      }
+      for (Player p : players) {
+        if (p.getCards() == null) {
+          continue;
+        }
 
-      for (Card c : p.getCards()) {
-        jdbc.update(
-                "INSERT INTO player_card (player_id, game_id, card_id, card_name, card_type) VALUES (?, ?, ?, ?, ?)",
-                p.getPlayerId(),
-                GAME_ID,
-                c.getCardId(),
-                c.getName(),
-                c.getClass().getSimpleName()
-        );
+        for (Card c : p.getCards()) {
+          jdbc.update(
+                  "INSERT INTO player_card (player_id, game_id, card_id, card_name, card_type) VALUES (?, ?, ?, ?, ?)",
+                  p.getPlayerId(),
+                  GAME_ID,
+                  c.getCardId(),
+                  c.getName(),
+                  c.getClass().getSimpleName()
+          );
+        }
       }
+    } catch (DataAccessException e) {
+      logger.error("[DB] savePlayerCards failed", e);
+      throw e;
     }
+
   }
 
   public void updatePlayerPosition(String playerId, Position position) {
-    if (position == null) {
+    try {
+      if (position == null) {
+        jdbc.update(
+                "UPDATE player SET position_type=NULL, position_x=NULL, position_y=NULL, position_room=NULL WHERE player_id=?",
+                playerId
+        );
+        return;
+      }
+      String posType = position.getPositionType().toString();
+      Integer posX = null;
+      Integer posY = null;
+      String posRoom = null;
+      if (position.getPositionType() == PositionType.BOARD) {
+        posX = position.getX();
+        posY = position.getY();
+      } else {
+        posRoom = position.getRoom().toString();
+      }
       jdbc.update(
-              "UPDATE player SET position_type=NULL, position_x=NULL, position_y=NULL, position_room=NULL WHERE player_id=?",
-              playerId
+              "UPDATE player SET position_type=?, position_x=?, position_y=?, position_room=? WHERE player_id=?",
+              posType, posX, posY, posRoom, playerId
       );
-      return;
+    } catch (DataAccessException e) {
+      logger.error("[DB] updatePlayerPosition failed", e);
+      throw e;
     }
-    String posType = position.getPositionType().toString();
-    Integer posX = null;
-    Integer posY = null;
-    String posRoom = null;
-    if (position.getPositionType() == PositionType.BOARD) {
-      posX = position.getX();
-      posY = position.getY();
-    } else {
-      posRoom = position.getRoom().toString();
-    }
-    jdbc.update(
-            "UPDATE player SET position_type=?, position_x=?, position_y=?, position_room=? WHERE player_id=?",
-            posType, posX, posY, posRoom, playerId
-    );
+
   }
 
   public void updateCurrentPlayer(int currentPlayerIndex, int diceValue, String phase) {
-    jdbc.update(
-            "INSERT INTO turn_manager (game_id, current_player_id, dice_value, phase) VALUES (?, ?, ?, ?) " +
-                    "ON DUPLICATE KEY UPDATE current_player_id=?, dice_value=?, phase=?",
-            GAME_ID, currentPlayerIndex, diceValue, phase,
-            currentPlayerIndex, diceValue, phase
-    );
+    try{
+      jdbc.update(
+              "INSERT INTO turn_manager (game_id, current_player_id, dice_value, phase) VALUES (?, ?, ?, ?) " +
+                      "ON DUPLICATE KEY UPDATE current_player_id=?, dice_value=?, phase=?",
+              GAME_ID, currentPlayerIndex, diceValue, phase,
+              currentPlayerIndex, diceValue, phase
+      );
+    } catch (DataAccessException e) {
+      logger.error("[DB] updateCurrentPlayer failed", e);
+      throw e;
+    }
+
   }
 
   public void updateGameStatus(String status, String currentPhase) {
-    jdbc.update(
-            "UPDATE game SET status=?, current_phase=? WHERE game_id=?",
-            status, currentPhase, GAME_ID
-    );
+    try {
+      jdbc.update(
+              "UPDATE game SET status=?, current_phase=? WHERE game_id=?",
+              status, currentPhase, GAME_ID
+      );
+    } catch (DataAccessException e) {
+      logger.error("[DB] updateGameStatus failed", e);
+      throw e;
+    }
+
   }
 
   public void updatePlayerFlags(String playerId, boolean eliminated, boolean cheatUsed, boolean accusationUsed) {
-    jdbc.update(
-            "UPDATE player SET eliminated=?, cheat_used=?, accusation_used=? WHERE player_id=?",
-            eliminated, cheatUsed, accusationUsed, playerId
-    );
+    try {
+      jdbc.update(
+              "UPDATE player SET eliminated=?, cheat_used=?, accusation_used=? WHERE player_id=?",
+              eliminated, cheatUsed, accusationUsed, playerId
+      );
+    } catch (DataAccessException e) {
+      logger.error("[DB] updatePlayerFlags failed", e);
+      throw e;
+    }
+
   }
 
   public void updatePlayerCards(String playerId, List<Card> cards) {
-    jdbc.update("DELETE FROM player_card WHERE player_id = ?", playerId);
-    if (cards == null) return;
-    for (Card c : cards) {
-      jdbc.update(
-              "INSERT INTO player_card (player_id, game_id, card_id, card_name, card_type) VALUES (?, ?, ?, ?, ?)",
-              playerId, GAME_ID, c.getCardId(), c.getName(), c.getClass().getSimpleName()
-      );
+    try {
+      jdbc.update("DELETE FROM player_card WHERE player_id = ?", playerId);
+      if (cards == null) return;
+      for (Card c : cards) {
+        jdbc.update(
+                "INSERT INTO player_card (player_id, game_id, card_id, card_name, card_type) VALUES (?, ?, ?, ?, ?)",
+                playerId, GAME_ID, c.getCardId(), c.getName(), c.getClass().getSimpleName()
+        );
+      }
+    } catch (DataAccessException e) {
+      logger.error("[DB] updatePlayerCards failed", e);
+      throw e;
     }
+
+
   }
 
   public void saveSeenCards(String playerId, List<Card> cards) {
-    if (cards == null) {
-      return;
+    try {
+      if (cards == null) {
+        return;
+      }
+
+      for (Card card : cards) {
+        jdbc.update(
+                "INSERT INTO seen_cards (player_id, game_id, card_id, card_name, card_type) VALUES (?, ?, ?, ?, ?) " +
+                        "ON DUPLICATE KEY UPDATE card_name=?, card_type=?",
+                playerId,
+                GAME_ID,
+                card.getCardId(),
+                card.getName(),
+                card.getClass().getSimpleName(),
+                card.getName(),
+                card.getClass().getSimpleName()
+        );
+      }
+    } catch (DataAccessException e) {
+      logger.error("[DB] saveSeenCards failed", e);
+      throw e;
     }
 
-    for (Card card : cards) {
-      jdbc.update(
-              "INSERT INTO seen_cards (player_id, game_id, card_id, card_name, card_type) VALUES (?, ?, ?, ?, ?) " +
-                      "ON DUPLICATE KEY UPDATE card_name=?, card_type=?",
-              playerId,
-              GAME_ID,
-              card.getCardId(),
-              card.getName(),
-              card.getClass().getSimpleName(),
-              card.getName(),
-              card.getClass().getSimpleName()
-      );
-    }
   }
 
   public void removePlayer(String playerId) {
-    jdbc.update("DELETE FROM player_card WHERE player_id = ?", playerId);
-    jdbc.update("DELETE FROM seen_cards WHERE player_id = ?", playerId);
-    jdbc.update("DELETE FROM player WHERE player_id = ?", playerId);
+    try {
+      jdbc.update("DELETE FROM player_card WHERE player_id = ?", playerId);
+      jdbc.update("DELETE FROM seen_cards WHERE player_id = ?", playerId);
+      jdbc.update("DELETE FROM player WHERE player_id = ?", playerId);
+    } catch (DataAccessException e) {
+      logger.error("[DB] removePlayer failed", e);
+      throw e;
+    }
+
   }
 
   public Set<String> loadPlayerIds() {
