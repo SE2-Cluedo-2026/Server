@@ -70,7 +70,24 @@ public class WebSocketEventListener {
 
         Game game = Game.getINSTANCE();
 
-        if (game.getStatus() != GameStatus.RUNNING) return;
+        if (game.getStatus() != GameStatus.RUNNING) {
+            // Lobby: direkt aus der Spielerliste entfernen und alle Clients benachrichtigen
+            if (playerId != null) {
+                boolean removed = game.leaveLobby(playerId);
+                playerToCurrentSession.remove(playerId);
+                logger.info("[Disconnect] Lobby player {} removed on disconnect", playerId);
+                if (removed) {
+                    ObjectNode leaveMsg = mapper.createObjectNode();
+                    ObjectNode leavePayload = mapper.createObjectNode();
+                    leaveMsg.put("type", "PLAYER_REMOVED");
+                    leavePayload.put("playerId", playerId);
+                    leaveMsg.set(PAYLOAD_KEY, leavePayload);
+                    messagingTemplate.convertAndSend("/topic/lobby-response", leaveMsg);
+                    logger.info("[Disconnect] Broadcast PLAYER_REMOVED for {}", playerId);
+                }
+            }
+            return;
+        }
 
         for (Player p : game.getPlayers()) {
             if (p.getPlayerId().equals(playerId)) {
@@ -95,6 +112,12 @@ public class WebSocketEventListener {
     }
 
     private void processDisconnectTimeout(String playerId, Game game) {
+        if (game.getStatus() != GameStatus.RUNNING) {
+            game.leaveLobby(playerId);
+            playerToCurrentSession.remove(playerId);
+            logger.info("[Disconnect] Game no longer running, skipping timeout for {}", playerId);
+            return;
+        }
         Player missing = null;
         for (Player p : game.getPlayers()) {
             if (p.getPlayerId().equals(playerId)) {
@@ -155,10 +178,13 @@ public class WebSocketEventListener {
             timer.cancel(false);
         }
 
+        boolean waitingForPlayer = Game.getINSTANCE().getPlayers().stream().anyMatch(p -> !p.isActive());
+
         ObjectNode continueMsg = mapper.createObjectNode();
         ObjectNode continuePayload = mapper.createObjectNode();
         continueMsg.put("type", "CONTINUE_GAME");
         continuePayload.put("rejoinedPlayerId", playerId);
+        continuePayload.put("waitingForPlayer", waitingForPlayer);
         continueMsg.set(PAYLOAD_KEY, continuePayload);
 
         messagingTemplate.convertAndSend(

@@ -87,34 +87,33 @@ public class WebSocketBrokerController {
             JsonNode payload = message.getPayload();
             logger.info("[Game] Received: {}", message);
 
-            switch (message.getType()) {
-                case ROLL_DICE -> {
-                    return gameServer.rollDice(payload, sessionId);
-                }
-                case MOVE -> {
-                    return gameServer.move(payload, sessionId);
-                }
-                case END_TURN -> {
-                    return gameServer.endTurn();
-                }
-                case ENTER_ROOM -> {
-                    return gameServer.enterRoom(payload, sessionId);
-                }
-                case TAKE_HIDDEN_WAY -> {
-                    return gameServer.takeHiddenWay(payload, sessionId);
-                }
-                case MAKE_ACCUSATION -> {
-                    return gameServer.handleAccusation(payload, sessionId);
-                }
-                case MAKE_SUGGESTION -> {
-                    return gameServer.handleSuggestion(payload, sessionId);
-                }
-                case CHEAT_ATTEMPT -> {
-                    return gameServer.handleCheatAttempt(payload, sessionId);
-                }
-                case CHEAT_BUTTON_PRESSED -> {
-                    return gameServer.handleCheatButtonPressed(payload, sessionId);
-                }
+        switch (message.getType()) {
+            case ROLL_DICE -> {
+                return gameServer.rollDice(payload , sessionId);
+            }
+            case MOVE -> {
+                return gameServer.move(payload, sessionId);
+            }
+            case END_TURN -> {
+                return gameServer.endTurn();
+            }
+            case ENTER_ROOM -> {
+                return gameServer.enterRoom(payload, sessionId);
+            }
+            case TAKE_HIDDEN_WAY -> {
+                return gameServer.takeHiddenWay(payload, sessionId);
+            }
+            case MAKE_ACCUSATION -> {
+                return gameServer.handleAccusation(payload, sessionId);
+            }
+            case MAKE_SUGGESTION -> {
+                return gameServer.handleSuggestion(payload, sessionId);
+            }
+            case CHEAT_ATTEMPT -> {
+                return gameServer.handleCheatAttempt(payload,sessionId);
+            }
+            case CHEAT_BUTTON_PRESSED -> {
+                return gameServer.handleCheatButtonPressed(payload, sessionId);
             }
             ObjectNode err = mapper.createObjectNode();
             ObjectNode errPayload = mapper.createObjectNode();
