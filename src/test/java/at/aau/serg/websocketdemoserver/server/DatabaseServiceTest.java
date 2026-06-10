@@ -12,6 +12,7 @@ import at.aau.serg.websocketdemoserver.model.game.Player;
 import at.aau.serg.websocketdemoserver.model.game.TurnManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -167,6 +168,18 @@ class DatabaseServiceTest {
         verify(jdbc, atLeastOnce()).update(anyString(), any(Object[].class));
     }
 
+    @Test
+    void saveGame_rethrowsDataAccessException() {
+        Game game = Game.getINSTANCE();
+        game.resetGame();
+
+        doThrow(new DataAccessResourceFailureException("db down"))
+                .when(jdbc).update(contains("INSERT INTO game"), any(Object[].class));
+
+        assertThrows(DataAccessResourceFailureException.class, () -> databaseService.saveGame(game));
+    }
+
+
     // ═══════════════════════════════════════════════
     // updatePlayerPosition
     // ═══════════════════════════════════════════════
@@ -207,6 +220,18 @@ class DatabaseServiceTest {
         );
     }
 
+    @Test
+    void updatePlayerPosition_rethrowsDataAccessException() {
+        Position pos = new Position();
+        pos.setBoardPosition(1, 2);
+
+        doThrow(new DataAccessResourceFailureException("db down"))
+                .when(jdbc).update(contains("UPDATE player SET position_type=?"), any(), any(), any(), any(), any());
+
+        assertThrows(DataAccessResourceFailureException.class,
+                () -> databaseService.updatePlayerPosition("p1", pos));
+    }
+
     // ═══════════════════════════════════════════════
     // updateCurrentPlayer
     // ═══════════════════════════════════════════════
@@ -220,6 +245,15 @@ class DatabaseServiceTest {
                 eq("game1"), eq(2), eq(7), eq("WAITING_FOR_MOVE"),
                 eq(2), eq(7), eq("WAITING_FOR_MOVE")
         );
+    }
+
+    @Test
+    void updateCurrentPlayer_rethrowsDataAccessException() {
+        doThrow(new DataAccessResourceFailureException("db down"))
+                .when(jdbc).update(contains("INSERT INTO turn_manager"), any(Object[].class));
+
+        assertThrows(DataAccessResourceFailureException.class,
+                () -> databaseService.updateCurrentPlayer(1, 6, "WAITING_FOR_MOVE"));
     }
 
     // ═══════════════════════════════════════════════
@@ -308,6 +342,15 @@ class DatabaseServiceTest {
         verify(jdbc).update("DELETE FROM player_card WHERE player_id = ?", "p1");
         verify(jdbc).update("DELETE FROM seen_cards WHERE player_id = ?", "p1");
         verify(jdbc).update("DELETE FROM player WHERE player_id = ?", "p1");
+    }
+
+    @Test
+    void removePlayer_rethrowsDataAccessException() {
+        doThrow(new DataAccessResourceFailureException("db down"))
+                .when(jdbc).update("DELETE FROM player_card WHERE player_id = ?", "p1");
+
+        assertThrows(DataAccessResourceFailureException.class,
+                () -> databaseService.removePlayer("p1"));
     }
 
     // ═══════════════════════════════════════════════
