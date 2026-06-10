@@ -27,76 +27,109 @@ public class WebSocketBrokerController {
         this.eventListener = eventListener;
     }
 
+    private ObjectNode unauthorizedError(String type) {
+        tools.jackson.databind.ObjectMapper mapper = new tools.jackson.databind.ObjectMapper();
+        ObjectNode response = mapper.createObjectNode();
+        ObjectNode responsePayload = mapper.createObjectNode();
+        response.put("type", type);
+        responsePayload.put("reason", "Unauthorized: action not allowed for this session");
+        response.set("payload", responsePayload);
+        return response;
+    }
+
     @MessageMapping("/lobby")
     @SendTo("/topic/lobby-response")
     public ObjectNode routeLobbyMessage(LobbyMessage message, @Header("simpSessionId") String sessionId) {
-        JsonNode payload = message.getPayload();
-        logger.info("[Lobby] Received: {}", message);
+        try {
+            JsonNode payload = message.getPayload();
+            logger.info("[Lobby] Received: {}", message);
 
-        switch (message.getType()) {
-            case JOIN_LOBBY -> {
-                String playerKey = payload.get("playerKey").asText();
-                eventListener.registerSession(sessionId, playerKey);
-                return gameServer.joinLobby(payload);
+            switch (message.getType()) {
+                case JOIN_LOBBY -> {
+                    String playerKey = payload.get("playerKey").asText();
+                    eventListener.registerSession(sessionId, playerKey);
+                    return gameServer.joinLobby(payload);
+                }
+                case SET_CHARACTER_TYPE_AND_STATUS_READY -> {
+                    return gameServer.setCharacterTypeAndStatusReady(payload, sessionId);
+                }
+                case START_GAME -> {
+                    return gameServer.startGame();
+                }
+                case LEAVE_LOBBY -> {
+                    String playerId = payload.get("playerId").asText();
+                    String sessionPlayer = eventListener.getPlayerIdForSession(sessionId);
+                    if(sessionPlayer != null && !playerId.equals(sessionPlayer)) {
+                        return unauthorizedError("LEAVE_ERROR");
+                    }
+                    return gameServer.leaveLobby(payload);
+                }
             }
-            case SET_CHARACTER_TYPE_AND_STATUS_READY -> {
-                return gameServer.setCharacterTypeAndStatusReady(payload);
-            }
-            case START_GAME -> {
-                return gameServer.startGame();
-            }
-            case LEAVE_LOBBY -> {
-                return gameServer.leaveLobby(payload);
-            }
+            ObjectNode err = mapper.createObjectNode();
+            ObjectNode errPayload = mapper.createObjectNode();
+            err.put("type", "LOBBY_ERROR");
+            errPayload.put("reason", "Unknown lobby message type: " + message.getType());
+            err.set("payload", errPayload);
+            return err;
+        } catch(Exception e) {
+            ObjectNode err = mapper.createObjectNode();
+            ObjectNode errPayload = mapper.createObjectNode();
+            err.put("type", "LOBBY_ERROR");
+            errPayload.put("reason", "Unknown reason");
+            err.set("payload", errPayload);
+            return err;
         }
-        ObjectNode err = mapper.createObjectNode();
-        ObjectNode errPayload = mapper.createObjectNode();
-        err.put("type", "LOBBY_ERROR");
-        errPayload.put("reason", "Unknown lobby message type: " + message.getType());
-        err.set("payload", errPayload);
-        return err;
     }
     @MessageMapping("/game")
     @SendTo("/topic/game-response")
-    public ObjectNode routeGameMessage(GameMessage message) {
-        JsonNode payload = message.getPayload();
-        logger.info("[Game] Received: {}", message);
+    public ObjectNode routeGameMessage(GameMessage message, @Header("simpSessionId") String sessionId) {
+        try {
+            JsonNode payload = message.getPayload();
+            logger.info("[Game] Received: {}", message);
 
-        switch (message.getType()) {
-            case ROLL_DICE -> {
-                return gameServer.rollDice(payload);
+            switch (message.getType()) {
+                case ROLL_DICE -> {
+                    return gameServer.rollDice(payload, sessionId);
+                }
+                case MOVE -> {
+                    return gameServer.move(payload, sessionId);
+                }
+                case END_TURN -> {
+                    return gameServer.endTurn();
+                }
+                case ENTER_ROOM -> {
+                    return gameServer.enterRoom(payload, sessionId);
+                }
+                case TAKE_HIDDEN_WAY -> {
+                    return gameServer.takeHiddenWay(payload, sessionId);
+                }
+                case MAKE_ACCUSATION -> {
+                    return gameServer.handleAccusation(payload, sessionId);
+                }
+                case MAKE_SUGGESTION -> {
+                    return gameServer.handleSuggestion(payload, sessionId);
+                }
+                case CHEAT_ATTEMPT -> {
+                    return gameServer.handleCheatAttempt(payload, sessionId);
+                }
+                case CHEAT_BUTTON_PRESSED -> {
+                    return gameServer.handleCheatButtonPressed(payload, sessionId);
+                }
             }
-            case MOVE -> {
-                return gameServer.move(payload);
-            }
-            case END_TURN -> {
-                return gameServer.endTurn();
-            }
-            case ENTER_ROOM -> {
-                return gameServer.enterRoom(payload);
-            }
-            case TAKE_HIDDEN_WAY -> {
-                return gameServer.takeHiddenWay(payload);
-            }
-            case MAKE_ACCUSATION -> {
-                return gameServer.handleAccusation(payload);
-            }
-            case MAKE_SUGGESTION -> {
-                return gameServer.handleSuggestion(payload);
-            }
-            case CHEAT_ATTEMPT -> {
-                return gameServer.handleCheatAttempt(payload);
-            }
-            case CHEAT_BUTTON_PRESSED -> {
-                return gameServer.handleCheatButtonPressed(payload);
-            }
+            ObjectNode err = mapper.createObjectNode();
+            ObjectNode errPayload = mapper.createObjectNode();
+            err.put("type", "GAME_ERROR");
+            errPayload.put("reason", "Unknown game message type: " + message.getType());
+            err.set("payload", errPayload);
+            return err;
+        } catch (Exception e) {
+            ObjectNode err = mapper.createObjectNode();
+            ObjectNode errPayload = mapper.createObjectNode();
+            err.put("type", "GAME_ERROR");
+            errPayload.put("reason", "Unknown reason");
+            err.set("payload", errPayload);
+            return err;
         }
-        ObjectNode err = mapper.createObjectNode();
-        ObjectNode errPayload = mapper.createObjectNode();
-        err.put("type", "GAME_ERROR");
-        errPayload.put("reason", "Unknown game message type: " + message.getType());
-        err.set("payload", errPayload);
-        return err;
     }
 
     @MessageExceptionHandler
