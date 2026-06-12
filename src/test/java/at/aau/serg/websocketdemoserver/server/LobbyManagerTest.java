@@ -95,4 +95,11 @@ public class LobbyManagerTest {
     public void TestCanStartGameReturnsFalse() {
         assertFalse(lobbyManager.canStartGame());
     }
+    @Test
+    public void TestIsPlayerInGame_ReturnsFalse() {
+        assertFalse(lobbyManager.isPlayerInGame("999"));
+    }
+
+
+
 }
