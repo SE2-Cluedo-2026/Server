@@ -36,10 +36,6 @@ class DatabaseServiceTest {
         ReflectionTestUtils.setField(databaseService, "jdbc", jdbc);
     }
 
-    // ═══════════════════════════════════════════════
-    // saveGame
-    // ═══════════════════════════════════════════════
-
     @Test
     void saveGame_lobbyStatus_skipseTurnManagerAndCaseFile() {
         Game game = Game.getINSTANCE();
@@ -51,8 +47,6 @@ class DatabaseServiceTest {
 
         databaseService.saveGame(game);
 
-        // saveGameState(1) + savePlayers deletes(3) + player insert(1) + savePlayerCards delete(1) = 6
-        // no saveTurnManager, no saveCaseFile
         verify(jdbc, atLeastOnce()).update(anyString(), any(Object[].class));
         verify(jdbc, never()).update(contains("turn_manager"), any(Object[].class));
     }
@@ -72,7 +66,6 @@ class DatabaseServiceTest {
 
         databaseService.saveGame(game);
 
-        // Should call saveTurnManager and saveCaseFile in addition
         verify(jdbc, atLeast(5)).update(anyString(), any(Object[].class));
     }
 
@@ -82,7 +75,6 @@ class DatabaseServiceTest {
         game.resetGame();
 
         Player p = new Player("p1");
-        // currentPosition is null by default
         game.addPlayer(p);
 
         databaseService.saveGame(game);
@@ -128,7 +120,6 @@ class DatabaseServiceTest {
         game.resetGame();
 
         Player p = new Player("p1");
-        // character is null by default
         game.addPlayer(p);
 
         databaseService.saveGame(game);
@@ -151,7 +142,6 @@ class DatabaseServiceTest {
 
         databaseService.saveGame(game);
 
-        // savePlayerCards: 1 delete + 2 inserts
         verify(jdbc, atLeast(3)).update(anyString(), any(Object[].class));
     }
 
@@ -168,10 +158,6 @@ class DatabaseServiceTest {
 
         verify(jdbc, atLeastOnce()).update(anyString(), any(Object[].class));
     }
-
-    // ═══════════════════════════════════════════════
-    // updatePlayerPosition
-    // ═══════════════════════════════════════════════
 
     @Test
     void updatePlayerPosition_null_setsAllNull() {
@@ -209,10 +195,6 @@ class DatabaseServiceTest {
         );
     }
 
-    // ═══════════════════════════════════════════════
-    // updateCurrentPlayer
-    // ═══════════════════════════════════════════════
-
     @Test
     void updateCurrentPlayer_insertsOrUpdates() {
         databaseService.updateCurrentPlayer(2, 7, "WAITING_FOR_MOVE");
@@ -224,10 +206,6 @@ class DatabaseServiceTest {
         );
     }
 
-    // ═══════════════════════════════════════════════
-    // updateGameStatus
-    // ═══════════════════════════════════════════════
-
     @Test
     void updateGameStatus_updatesStatusAndPhase() {
         databaseService.updateGameStatus("RUNNING", "WAITING_FOR_ROLL");
@@ -238,10 +216,6 @@ class DatabaseServiceTest {
         );
     }
 
-    // ═══════════════════════════════════════════════
-    // updatePlayerFlags
-    // ═══════════════════════════════════════════════
-
     @Test
     void updatePlayerFlags_updatesFlags() {
         databaseService.updatePlayerFlags("p1", true, false, true);
@@ -251,10 +225,6 @@ class DatabaseServiceTest {
                 eq(true), eq(false), eq(true), eq("p1")
         );
     }
-
-    // ═══════════════════════════════════════════════
-    // updatePlayerCards
-    // ═══════════════════════════════════════════════
 
     @Test
     void updatePlayerCards_nullCards_deletesOnly() {
@@ -272,13 +242,8 @@ class DatabaseServiceTest {
 
         databaseService.updatePlayerCards("p1", cards);
 
-        // 1 delete + 1 insert
         verify(jdbc, times(2)).update(anyString(), any(Object[].class));
     }
-
-    // ═══════════════════════════════════════════════
-    // saveSeenCards
-    // ═══════════════════════════════════════════════
 
     @Test
     void saveSeenCards_nullCards_doesNothing() {
@@ -299,10 +264,6 @@ class DatabaseServiceTest {
         verify(jdbc, times(2)).update(contains("seen_cards"), any(Object[].class));
     }
 
-    // ═══════════════════════════════════════════════
-    // removePlayer
-    // ═══════════════════════════════════════════════
-
     @Test
     void removePlayer_deletesFromAllTables() {
         databaseService.removePlayer("p1");
@@ -311,10 +272,6 @@ class DatabaseServiceTest {
         verify(jdbc).update("DELETE FROM seen_cards WHERE player_id = ?", "p1");
         verify(jdbc).update("DELETE FROM player WHERE player_id = ?", "p1");
     }
-
-    // ═══════════════════════════════════════════════
-    // loadPlayerIds
-    // ═══════════════════════════════════════════════
 
     @Test
     void loadPlayerIds_returnsSetOfIds() {
@@ -328,10 +285,6 @@ class DatabaseServiceTest {
 
         assertEquals(Set.of("p1", "p2"), result);
     }
-
-    // ═══════════════════════════════════════════════
-    // loadGameStatus
-    // ═══════════════════════════════════════════════
 
     @Test
     void loadGameStatus_returnsStatus() {
@@ -353,24 +306,17 @@ class DatabaseServiceTest {
         assertNull(result);
     }
 
-    // ═══════════════════════════════════════════════
-    // loadFullGame
-    // ═══════════════════════════════════════════════
-
     @Test
     void loadFullGame_restoresGameWithBoardPositionPlayer() {
-        // game row
         Map<String, Object> gameRow = new HashMap<>();
         gameRow.put("status", "RUNNING");
         gameRow.put("current_phase", "WAITING_FOR_ROLL");
 
-        // turn manager row
         Map<String, Object> tmRow = new HashMap<>();
         tmRow.put("current_player_id", 0);
         tmRow.put("dice_value", 5);
         tmRow.put("phase", "WAITING_FOR_MOVE");
 
-        // case file row
         Map<String, Object> cfRow = new HashMap<>();
         cfRow.put("suspect_card_id", "s1");
         cfRow.put("suspect_name", "MRS_PINK");
@@ -379,7 +325,6 @@ class DatabaseServiceTest {
         cfRow.put("weapon_card_id", "w1");
         cfRow.put("weapon_name", "KNIFE");
 
-        // player row with BOARD position
         Map<String, Object> playerRow = new HashMap<>();
         playerRow.put("player_id", "p1");
         playerRow.put("character_type", "MRS_PINK");
@@ -393,7 +338,6 @@ class DatabaseServiceTest {
         playerRow.put("position_y", 5);
         playerRow.put("position_room", null);
 
-        // player card rows — one of each type
         Map<String, Object> suspectCardRow = new HashMap<>();
         suspectCardRow.put("card_id", "sc1");
         suspectCardRow.put("card_name", "MRS_PINK");
@@ -447,7 +391,6 @@ class DatabaseServiceTest {
         cfRow.put("weapon_card_id", "w1");
         cfRow.put("weapon_name", "KNIFE");
 
-        // player with ROOM position
         Map<String, Object> playerRow = new HashMap<>();
         playerRow.put("player_id", "p2");
         playerRow.put("character_type", null);
@@ -498,7 +441,6 @@ class DatabaseServiceTest {
         cfRow.put("weapon_card_id", "w1");
         cfRow.put("weapon_name", "KNIFE");
 
-        // player with null position
         Map<String, Object> playerRow = new HashMap<>();
         playerRow.put("player_id", "p3");
         playerRow.put("character_type", "MRS_PINK");
@@ -560,7 +502,6 @@ class DatabaseServiceTest {
         playerRow.put("position_y", null);
         playerRow.put("position_room", null);
 
-        // unknown card type → createCardFromType returns null → card not added
         Map<String, Object> unknownCard = new HashMap<>();
         unknownCard.put("card_id", "x1");
         unknownCard.put("card_name", "UNKNOWN");
@@ -579,7 +520,6 @@ class DatabaseServiceTest {
 
         databaseService.loadFullGame();
 
-        // The unknown card should not be in the player's card list
         assertTrue(Game.getINSTANCE().getPlayers().get(0).getCards().isEmpty());
     }
 
