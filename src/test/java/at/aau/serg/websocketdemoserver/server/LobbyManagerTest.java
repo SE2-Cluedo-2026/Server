@@ -1,11 +1,15 @@
 package at.aau.serg.websocketdemoserver.server;
 
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
+import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
+import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
+import at.aau.serg.websocketdemoserver.model.game.Player;
+import java.util.ArrayList;
 
 public class LobbyManagerTest {
 
@@ -163,5 +167,16 @@ public class LobbyManagerTest {
     }
 
 
+    @Test
+    public void TestAddPlayerReturnsFalseWhenGameRunning() {
+        lobbyManager.addPlayer("1");
+        lobbyManager.addPlayer("2");
+        lobbyManager.setCharacterTypeAndStatusReady("1", CharacterType.MRS_PINK);
+        lobbyManager.setCharacterTypeAndStatusReady("2", CharacterType.MRS_LAVENDER);
+        Game.getINSTANCE().start();
+
+        boolean result = lobbyManager.addPlayer("3");
+        assertFalse(result);
+    }
 
 }
