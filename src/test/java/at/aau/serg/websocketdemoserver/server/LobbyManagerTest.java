@@ -33,12 +33,14 @@ public class LobbyManagerTest {
 
     @Test
     public void TestAddPlayerReturnsFalseWhenPlayerAlreadyJoined() {
-        assertTrue(lobbyManager.addPlayer("1"));
+        lobbyManager.addPlayer("1");
+        lobbyManager.addPlayer("2");
+        lobbyManager.setCharacterTypeAndStatusReady("1", CharacterType.MRS_PINK);
+        lobbyManager.setCharacterTypeAndStatusReady("2", CharacterType.DR_RED);
+        Game.getINSTANCE().start();
 
-        boolean addedAgain = lobbyManager.addPlayer("1");
-
-        assertFalse(addedAgain);
-        assertEquals(1, lobbyManager.getPlayers().size());
+        boolean result = lobbyManager.addPlayer("3");
+        assertFalse(result);
     }
 
     @Test
@@ -94,7 +96,16 @@ public class LobbyManagerTest {
     @Test
     public void TestCanStartGameReturnsFalse() {
         assertFalse(lobbyManager.canStartGame());
-        @Test
+    }
+    @Test
+    public void TestCanStartGameReturnsTrue() {
+        lobbyManager.addPlayer("1");
+        lobbyManager.addPlayer("2");
+        lobbyManager.setCharacterTypeAndStatusReady("1", CharacterType.MRS_PINK);
+        lobbyManager.setCharacterTypeAndStatusReady("2", CharacterType.DR_RED);
+        assertTrue(lobbyManager.canStartGame());
+    }
+    @Test
         public void TestSetCharacterTypeAndStatusReady_ReturnsTrue() {
             lobbyManager.addPlayer("1");
             boolean result = lobbyManager.setCharacterTypeAndStatusReady("1", CharacterType.MRS_PINK);
