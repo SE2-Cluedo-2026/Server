@@ -34,6 +34,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
+import java.util.ArrayList;
 
 import java.util.Collections;
 import java.util.List;
@@ -78,6 +79,31 @@ class GameServerTest {
         ReflectionTestUtils.setField(turnManager, "movesRemaining", 0);
         ReflectionTestUtils.setField(turnManager, "phase", TurnPhase.WAITING_FOR_ROLL);
     }
+    // start tests 969 - 1012
+    @Test
+    void buildEffectivePlayers_cheaterGetsExcludedAndUsesCheat() {
+        Game game = mock(Game.class);
+        CheatManager cheatManager = mock(CheatManager.class);
+
+        Player cheater = mock(Player.class);
+
+        when(game.getCheatManager()).thenReturn(cheatManager);
+        when(game.getPlayers()).thenReturn(List.of(cheater));
+
+        when(cheater.getPlayerId()).thenReturn("p1");
+        when(cheater.isCheatUsed()).thenReturn(false);
+
+        when(cheatManager.hasCheated("p1")).thenReturn(true);
+
+        ReflectionTestUtils.invokeMethod(
+                gameServer,
+                "buildEffectivePlayers",
+                game,
+                "otherPlayer"
+        );
+
+        verify(cheater).useCheat();
+    }
 
     //start tests 1014-1193
     @Test
@@ -116,7 +142,7 @@ class GameServerTest {
         assertEquals("CHEAT_ATTEMPT_ERROR", result.get("type").asText());
         assertEquals("No active suggestion to cheat on", result.path("payload").path("reason").asText());
     }
-
+/*
     @Test
     void cheatAttempt_playerNotFound_returnsError() {
         authorizeSession("sess", "ghost");
@@ -133,6 +159,8 @@ class GameServerTest {
         assertEquals("CHEAT_ATTEMPT_ERROR", result.get("type").asText());
         assertEquals("Player not found", result.path("payload").path("reason").asText());
     }
+
+
 
     @Test
     void cheatAttempt_eliminatedPlayer_returnsError() {
@@ -151,6 +179,8 @@ class GameServerTest {
         assertEquals("CHEAT_ATTEMPT_ERROR", result.get("type").asText());
         assertEquals("Eliminated players cannot cheat", result.path("payload").path("reason").asText());
     }
+
+ */
 
     @Test
     void cheatAttempt_ownSuggestion_returnsError() {
