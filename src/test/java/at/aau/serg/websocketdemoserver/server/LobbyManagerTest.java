@@ -123,6 +123,45 @@ public class LobbyManagerTest {
         assertFalse(lobbyManager.isPlayerInGame("999"));
     }
 
+    @Test
+    public void TestCanStartGameReturnsFalseWhenTooManyPlayers() {
+        // 5 Spieler direkt über restoreState einfügen
+       players = new java.util.ArrayList<>();
+
+       Player p1 = new at.aau.serg.websocketdemoserver.model.game.Player("1");
+       Player p2 = new at.aau.serg.websocketdemoserver.model.game.Player("2");
+       Player p3 = new at.aau.serg.websocketdemoserver.model.game.Player("3");
+       Player p4 = new at.aau.serg.websocketdemoserver.model.game.Player("4");
+       Player p5 = new at.aau.serg.websocketdemoserver.model.game.Player("5");
+
+        p1.setCharacter(CharacterType.MRS_PINK);
+        p2.setCharacter(CharacterType.MRS_LAVENDER);
+        p3.setCharacter(CharacterType.DR_RED);
+        p4.setCharacter(CharacterType.DR_BLUE);
+        // p5 bleibt ohne Charakter
+
+        p1.markReady();
+        p2.markReady();
+        p3.markReady();
+        p4.markReady();
+        p5.markReady();
+
+        players.add(p1);
+        players.add(p2);
+        players.add(p3);
+        players.add(p4);
+        players.add(p5);
+
+        Game.getINSTANCE().restoreState(
+                GameStatus.LOBBY,
+                TurnPhase.WAITING_FOR_ROLL,
+                players,
+                null
+        );
+
+        assertFalse(lobbyManager.canStartGame());
+    }
+
 
 
 }
