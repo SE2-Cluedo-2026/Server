@@ -94,6 +94,18 @@ public class LobbyManagerTest {
     @Test
     public void TestCanStartGameReturnsFalse() {
         assertFalse(lobbyManager.canStartGame());
+        @Test
+        public void TestSetCharacterTypeAndStatusReady_ReturnsTrue() {
+            lobbyManager.addPlayer("1");
+            boolean result = lobbyManager.setCharacterTypeAndStatusReady("1", CharacterType.MRS_PINK);
+            assertTrue(result);
+        }
+
+        @Test
+        public void TestSetCharacterTypeAndStatusReady_ReturnsFalse() {
+            boolean result = lobbyManager.setCharacterTypeAndStatusReady("999", CharacterType.MRS_PINK);
+            assertFalse(result);
+        }
     }
     @Test
     public void TestIsPlayerInGame_ReturnsFalse() {
