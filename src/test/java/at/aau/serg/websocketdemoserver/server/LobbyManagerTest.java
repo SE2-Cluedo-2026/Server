@@ -179,4 +179,16 @@ public class LobbyManagerTest {
         assertFalse(result);
     }
 
+    @Test
+    public void TestAddPlayerReturnsFalseWhenGameFinished() {
+        Game.getINSTANCE().restoreState(
+                GameStatus.FINISHED,
+                TurnPhase.WAITING_FOR_ROLL,
+                new java.util.ArrayList<>(),
+                null
+        );
+
+        boolean result = lobbyManager.addPlayer("1");
+        assertFalse(result);
+    }
 }
