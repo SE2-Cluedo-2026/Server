@@ -105,6 +105,31 @@ class GameServerTest {
         verify(cheater).useCheat();
     }
 
+    @Test
+    void buildEffectivePlayers_normalPlayerAddedToEffectivePlayers() {
+        Game game = mock(Game.class);
+        CheatManager cheatManager = mock(CheatManager.class);
+
+        Player player = mock(Player.class);
+
+        when(game.getCheatManager()).thenReturn(cheatManager);
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        when(player.getPlayerId()).thenReturn("p1");
+
+        when(cheatManager.hasCheated("p1")).thenReturn(false);
+
+        List<Player> result = ReflectionTestUtils.invokeMethod(
+                gameServer,
+                "buildEffectivePlayers",
+                game,
+                "otherPlayer"
+        );
+
+        assertEquals(1, result.size());
+        assertTrue(result.contains(player));
+    }
+
     //start tests 1014-1193
     @Test
     void cheatAttempt_unauthorized_returnsError() {
