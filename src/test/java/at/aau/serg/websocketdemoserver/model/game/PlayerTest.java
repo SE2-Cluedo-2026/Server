@@ -11,6 +11,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PlayerTest {
 
@@ -113,5 +114,47 @@ public class PlayerTest {
         assertTrue(player.isEliminated());
     }
 
+    @Test
+    public void testAddSeenCards_nullInput() {
+        Player player = new Player("1");
+        player.addSeenCards(null);
+        assertTrue(player.getSeenCards().isEmpty());
+    }
 
+    @Test
+    public void testAddSeenCards_addsNewCards() {
+        Player player = new Player("1");
+        Card card1 = mock(Card.class);
+        Card card2 = mock(Card.class);
+        when(card1.getCardId()).thenReturn("c1");
+        when(card2.getCardId()).thenReturn("c2");
+
+        player.addSeenCards(List.of(card1, card2));
+
+        assertEquals(2, player.getSeenCards().size());
+    }
+
+    @Test
+    public void testAddSeenCards_doesNotAddDuplicates() {
+        Player player = new Player("1");
+        Card card = mock(Card.class);
+        when(card.getCardId()).thenReturn("c1");
+
+        player.addSeenCards(List.of(card));
+        player.addSeenCards(List.of(card));
+
+        assertEquals(1, player.getSeenCards().size());
+    }
+
+    @Test
+    public void testAddSeenCards_whenSeenCardsIsNull() {
+        Player player = new Player("1");
+        player.setSeenCards(null);
+        Card card = mock(Card.class);
+        when(card.getCardId()).thenReturn("c1");
+
+        player.addSeenCards(List.of(card));
+
+        assertEquals(1, player.getSeenCards().size());
+    }
 }
