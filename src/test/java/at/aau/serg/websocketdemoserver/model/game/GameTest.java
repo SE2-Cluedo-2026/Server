@@ -107,33 +107,13 @@ public class GameTest {
     }
 
     @Test
-    public void TestStartCreatesCompleteCaseFile() {
-        addFourPlayers();
-        game.start();
-
-        assertEquals(GameStatus.RUNNING, game.getStatus());
-        assertEquals(TurnPhase.WAITING_FOR_ROLL, game.getCurrentPhase());
-        assertNotNull(game.getCaseFile());
-        assertTrue(game.getCaseFile().isComplete());
-    }
-
-    @Test
-    public void TestMakeSuggestion() {
-        assertDoesNotThrow(() -> game.makeSuggestion());
-    }
-
-    @Test
-    public void TestMakeAccusation() {
-        assertDoesNotThrow(() -> game.makeAccusation());
-    }
-
-    @Test
     public void TestEndTurn() {
         addFourPlayers();
         game.start();
 
         assertDoesNotThrow(() -> game.endTurn());
     }
+
     @Test
     public void TestGetAvailableCharacters() {
         game.addPlayer(createPlayer("1", CharacterType.MRS_PINK));
@@ -165,6 +145,7 @@ public class GameTest {
         player.setCharacter(characterType);
         return player;
     }
+
     private void addFourPlayers() {
         game.addPlayer(createPlayer("1", CharacterType.MRS_PINK));
         game.addPlayer(createPlayer("2", CharacterType.DR_BLUE));
@@ -172,13 +153,6 @@ public class GameTest {
         game.addPlayer(createPlayer("4", CharacterType.DR_RED));
     }
 
-    @Test
-    public void TestStartCreatesCaseFile() {
-        addFourPlayers();
-        game.start();
-
-        assertNotNull(game.getCaseFile());
-    }
 
     @Test
     public void testStartCreatesCompleteCaseFile() {
@@ -237,10 +211,179 @@ public class GameTest {
         assertNotNull(playerFour.getCards());
 
         int totalCards = playerOne.getCards().size()
-        + playerTwo.getCards().size()
+                + playerTwo.getCards().size()
                 + playerThree.getCards().size()
                 + playerFour.getCards().size();
 
         assertEquals(12, totalCards);
+    }
+
+    @Test
+    public void TestResetGame() {
+        game.addPlayer(createPlayer("1", CharacterType.MRS_PINK));
+
+        game.resetGame();
+
+        assertEquals(GameStatus.LOBBY, game.getStatus());
+        assertEquals(TurnPhase.WAITING_FOR_ROLL, game.getCurrentPhase());
+        assertTrue(game.getPlayers().isEmpty());
+        assertNotNull(game.getBoard());
+        assertNotNull(game.getTurnManager());
+        assertNull(game.getCaseFile());
+    }
+
+    @Test
+    public void TestIsLobbyAndIsRunning() {
+        assertTrue(game.isLobby());
+        assertFalse(game.isRunning());
+
+        addFourPlayers();
+        game.start();
+
+        assertFalse(game.isLobby());
+        assertTrue(game.isRunning());
+    }
+
+    @Test
+    public void TestAllPlayersEliminatedEmptyReturnsFalse() {
+        assertFalse(game.allPlayersEliminated());
+    }
+
+    @Test
+    public void TestAllPlayersEliminatedTrue() {
+        Player p1 = createPlayer("1", CharacterType.MRS_PINK);
+        Player p2 = createPlayer("2", CharacterType.DR_BLUE);
+
+        p1.eliminate();
+        p2.eliminate();
+
+        game.addPlayer(p1);
+        game.addPlayer(p2);
+
+        assertTrue(game.allPlayersEliminated());
+    }
+
+    @Test
+    public void TestAllPlayersEliminatedFalseWhenOneAlive() {
+        Player p1 = createPlayer("1", CharacterType.MRS_PINK);
+        Player p2 = createPlayer("2", CharacterType.DR_BLUE);
+
+        p1.eliminate();
+
+        game.addPlayer(p1);
+        game.addPlayer(p2);
+
+        assertFalse(game.allPlayersEliminated());
+    }
+
+    @Test
+    public void TestStartThrowsWhenTooFewPlayers() {
+        game.addPlayer(createPlayer("1", CharacterType.MRS_PINK));
+
+        assertThrows(IllegalStateException.class, () -> game.start());
+    }
+
+    @Test
+    public void TestStartThrowsWhenTooManyPlayers() {
+        addFourPlayers();
+        game.addPlayer(createPlayer("5", CharacterType.MRS_PINK));
+
+        assertThrows(IllegalStateException.class, () -> game.start());
+    }
+
+    @Test
+    public void TestStartThrowsWhenGameNotInLobby() {
+        addFourPlayers();
+        game.start();
+
+        assertThrows(IllegalStateException.class, () -> game.start());
+    }
+
+    @Test
+    public void TestEndTurnThrowsWhenNotRunning() {
+        assertThrows(IllegalStateException.class, () -> game.endTurn());
+    }
+
+    @Test
+    public void TestGetCurrentPlayerWithoutPlayersReturnsNull() {
+        assertNull(game.getCurrentPlayer());
+    }
+
+    @Test
+    public void TestGetCurrentPlayerAfterStart() {
+        addFourPlayers();
+        game.start();
+
+        assertNotNull(game.getCurrentPlayer());
+        assertEquals("1", game.getCurrentPlayer().getPlayerId());
+    }
+
+    @Test
+    public void TestFinishWithNullCaseFile() {
+        game.finish();
+
+        assertEquals(GameStatus.FINISHED, game.getStatus());
+        assertNull(game.getCaseFile());
+    }
+
+    @Test
+    public void TestAbortResetsPlayerFields() {
+        addFourPlayers();
+        game.start();
+
+        Player player = game.getPlayers().get(0);
+        player.setReady(true);
+        player.eliminate();
+        player.useCheat();
+        player.setAccusationUsed(true);
+
+        game.abort();
+
+        assertEquals(GameStatus.LOBBY, game.getStatus());
+        assertEquals(TurnPhase.WAITING_FOR_ROLL, game.getCurrentPhase());
+        assertNull(game.getCaseFile());
+
+        assertFalse(player.isReady());
+        assertNull(player.getCharacter());
+        assertNull(player.getCards());
+        assertNull(player.getCurrentPosition());
+        assertFalse(player.isEliminated());
+        assertFalse(player.isCheatUsed());
+        assertFalse(player.isAccusationUsed());
+        assertTrue(player.isActive());
+    }
+
+    @Test
+    public void TestRestorePlayers() {
+        Player player = createPlayer("1", CharacterType.MRS_PINK);
+
+        game.restorePlayers(new java.util.ArrayList<>(List.of(player)));
+
+        assertEquals(1, game.getPlayers().size());
+        assertEquals("1", game.getPlayers().get(0).getPlayerId());
+    }
+
+    @Test
+    public void TestRestoreState() {
+        Player player = createPlayer("1", CharacterType.MRS_PINK);
+
+        game.restoreState(
+                GameStatus.RUNNING,
+                TurnPhase.IN_ROOM,
+                new java.util.ArrayList<>(List.of(player)),
+                null
+        );
+
+        assertEquals(GameStatus.RUNNING, game.getStatus());
+        assertEquals(TurnPhase.IN_ROOM, game.getCurrentPhase());
+        assertEquals(1, game.getPlayers().size());
+        assertNull(game.getCaseFile());
+    }
+
+    @Test
+    public void TestRemainingGetters() {
+        assertEquals("game1", game.getGameId());
+        assertNotNull(game.getDeck());
+        assertNotNull(game.getCheatManager());
     }
 }
