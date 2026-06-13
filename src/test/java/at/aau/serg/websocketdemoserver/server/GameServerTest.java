@@ -1131,4 +1131,105 @@ class GameServerTest {
         return p;
     }
     //end helper methods 1014-1193
+
+    // start test 1195-1237
+    @Test
+    void cardsToArray_nullCards_returnsEmptyArray() {
+        ArrayNode result = ReflectionTestUtils.invokeMethod(gameServer, "cardsToArray", (List<Card>) null);
+
+        assertEquals(0, result.size());
+    }
+
+    @Test
+    void cardsToArray_withCards_returnsPopulatedArray() {
+        List<Card> cards = List.of(
+                new SuspectCard("s1", "MRS_PINK", CharacterType.MRS_PINK),
+                new RoomCard("r1", "KITCHEN", RoomType.KITCHEN)
+        );
+
+        ArrayNode result = ReflectionTestUtils.invokeMethod(gameServer, "cardsToArray", cards);
+
+        assertEquals(2, result.size());
+        assertEquals("s1", result.get(0).path("cardId").asText());
+        assertEquals("MRS_PINK", result.get(0).path("name").asText());
+        assertEquals("SuspectCard", result.get(0).path("type").asText());
+        assertEquals("r1", result.get(1).path("cardId").asText());
+        assertEquals("KITCHEN", result.get(1).path("name").asText());
+        assertEquals("RoomCard", result.get(1).path("type").asText());
+    }
+
+    @Test
+    void rememberSeenCards_playerFound_addsSeenCardsAndSaves() {
+        Game game = mock(Game.class);
+        Player player = new Player("p1");
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        List<Card> cards = List.of(new WeaponCard("w1", "KNIFE", WeaponType.KNIFE));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "rememberSeenCards", game, "p1", cards);
+
+        assertEquals(1, player.getSeenCards().size());
+        assertEquals("KNIFE", player.getSeenCards().get(0).getName());
+        verify(dbService).saveSeenCards("p1", cards);
+    }
+
+    @Test
+    void rememberSeenCards_playerNotFound_stillSaves() {
+        Game game = mock(Game.class);
+        when(game.getPlayers()).thenReturn(Collections.emptyList());
+
+        List<Card> cards = List.of(new WeaponCard("w1", "KNIFE", WeaponType.KNIFE));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "rememberSeenCards", game, "ghost", cards);
+
+        verify(dbService).saveSeenCards("ghost", cards);
+    }
+
+    @Test
+    void findPlayer_existingPlayer_returnsPlayer() {
+        Game game = mock(Game.class);
+        Player player = new Player("p1");
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        Player result = ReflectionTestUtils.invokeMethod(gameServer, "findPlayer", game, "p1");
+
+        assertEquals(player, result);
+    }
+
+    @Test
+    void findPlayer_unknownPlayer_returnsNull() {
+        Game game = mock(Game.class);
+        when(game.getPlayers()).thenReturn(Collections.emptyList());
+
+        Player result = ReflectionTestUtils.invokeMethod(gameServer, "findPlayer", game, "ghost");
+
+        assertNull(result);
+    }
+
+    @Test
+    void positionToString_nullPosition_returnsEmptyString() {
+        String result = ReflectionTestUtils.invokeMethod(gameServer, "positionToString", (Position) null);
+
+        assertEquals("", result);
+    }
+
+    @Test
+    void positionToString_roomPosition_returnsRoomName() {
+        Position pos = new Position();
+        pos.setRoomType(RoomType.KITCHEN);
+
+        String result = ReflectionTestUtils.invokeMethod(gameServer, "positionToString", pos);
+
+        assertEquals("KITCHEN", result);
+    }
+
+    @Test
+    void positionToString_boardPosition_returnsCoordinates() {
+        Position pos = new Position();
+        pos.setBoardPosition(2, 3);
+
+        String result = ReflectionTestUtils.invokeMethod(gameServer, "positionToString", pos);
+
+        assertEquals("2,3", result);
+    }
 }
