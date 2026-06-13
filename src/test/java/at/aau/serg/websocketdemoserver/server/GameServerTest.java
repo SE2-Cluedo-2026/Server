@@ -475,6 +475,117 @@ class GameServerTest {
         assertEquals("LOBBY", payload.get("status").asText());
     }
 
+    // start tests 744-807
+    @Test
+    void takeHiddenWay_unauthorized_returnsError() {
+        when(eventListener.getPlayerIdForSession("badSession")).thenReturn("someoneElse");
+
+        ObjectNode result = gameServer.takeHiddenWay(payloadWithPlayerId("p1"), "badSession");
+
+        assertEquals("ENTER_ROOM_ERROR", result.get("type").asText());
+        assertEquals("Unauthorized: you can only act on your own behalf",
+                result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void takeHiddenWay_playerNotFound_returnsError() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getPlayers()).thenReturn(Collections.emptyList());
+
+        ObjectNode result = gameServer.takeHiddenWay(payloadWithPlayerId("p1"), "sess");
+
+        assertEquals("HIDDEN_WAY_ERROR", result.get("type").asText());
+        assertEquals("Player not found", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void takeHiddenWay_playerWithoutPosition_returnsError() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        Player player = new Player("p1");
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        ObjectNode result = gameServer.takeHiddenWay(payloadWithPlayerId("p1"), "sess");
+
+        assertEquals("HIDDEN_WAY_ERROR", result.get("type").asText());
+        assertEquals("Player is not in a room", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void takeHiddenWay_playerOnBoard_returnsError() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        Player player = new Player("p1");
+        Position pos = new Position();
+        pos.setBoardPosition(1, 2);
+        player.setCurrentPosition(pos);
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        ObjectNode result = gameServer.takeHiddenWay(payloadWithPlayerId("p1"), "sess");
+
+        assertEquals("HIDDEN_WAY_ERROR", result.get("type").asText());
+        assertEquals("Player is not in a room", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void takeHiddenWay_roomWithoutHiddenPassage_returnsError() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        Player player = new Player("p1");
+        Position pos = new Position();
+        pos.setRoomType(RoomType.LIBRARY);
+        player.setCurrentPosition(pos);
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        ObjectNode result = gameServer.takeHiddenWay(payloadWithPlayerId("p1"), "sess");
+
+        assertEquals("HIDDEN_WAY_ERROR", result.get("type").asText());
+        assertEquals("No hidden passage from this room", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void takeHiddenWay_success_movesPlayerThroughHiddenPassage() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getTurnManager()).thenReturn(TurnManager.getINSTANCE());
+
+        Player player = new Player("p1");
+        Position pos = new Position();
+        pos.setRoomType(RoomType.BALLROOM);
+        player.setCurrentPosition(pos);
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        ObjectNode result = gameServer.takeHiddenWay(payloadWithPlayerId("p1"), "sess");
+
+        assertEquals(GameMessageType.TAKE_HIDDEN_WAY.toString(), result.get("type").asText());
+        assertEquals("p1", result.path("payload").path("playerId").asText());
+        assertEquals(RoomType.STUDY.toString(), result.path("payload").path("targetRoom").asText());
+        assertEquals(TurnPhase.WAITING_FOR_ROLL.toString(), result.path("payload").path("currentPhase").asText());
+        assertEquals(RoomType.STUDY, player.getCurrentPosition().getRoom());
+        verify(dbService).updatePlayerPosition(eq("p1"), any(Position.class));
+    }
+
+    @Test
+    void takeHiddenWay_exception_returnsError() {
+        authorizeSession("sess", "p1");
+        when(lobbyManager.getGame()).thenThrow(new RuntimeException("db error"));
+
+        ObjectNode result = gameServer.takeHiddenWay(payloadWithPlayerId("p1"), "sess");
+
+        assertEquals("HIDDEN_WAY_ERROR", result.get("type").asText());
+        assertTrue(result.path("payload").path("reason").asText().contains("db error"));
+    }
+
+
     //start tests 1014-1193
     @Test
     void cheatAttempt_unauthorized_returnsError() {
