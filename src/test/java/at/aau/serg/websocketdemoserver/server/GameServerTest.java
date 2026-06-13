@@ -240,6 +240,102 @@ class GameServerTest {
         return p;
     }
 
+// start 172 -335
+  @Test
+    void setCharacterReady_unauthorized_returnsError() {
+        when(eventListener.getPlayerIdForSession("badSession")).thenReturn("someoneElse");
+
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("playerId", "p1");
+        payload.put("characterType", "MRS_PINK");
+
+        ObjectNode result = gameServer.setCharacterTypeAndStatusReady(payload, "badSession");
+
+        assertEquals("SET_READY_ERROR", result.get("type").asText());
+    }
+
+    @Test
+    void setCharacterReady_success_withCharacter() {
+
+        authorizeSession("sess", "p1");
+        when(lobbyManager.setCharacterTypeAndStatusReady("p1", CharacterType.MRS_PINK))
+                .thenReturn(true);
+        when(lobbyManager.getAvailableCharacters())
+                .thenReturn(List.of(CharacterType.MRS_LAVENDER));
+
+        Player p1 = makePlayer("p1", false);
+        lenient().when(p1.getCharacter()).thenReturn(CharacterType.MRS_PINK);
+        lenient().when(p1.isReady()).thenReturn(true);
+        when(lobbyManager.getPlayers()).thenReturn(List.of(p1));
+        when(lobbyManager.getGame()).thenReturn(mock(Game.class));
+
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("playerId", "p1");
+        payload.put("characterType", "MRS_PINK");
+
+
+        ObjectNode result = gameServer.setCharacterTypeAndStatusReady(payload, "sess");
+
+        assertEquals("SET_CHARACTER_TYPE_AND_STATUS_READY", result.get("type").asText());
+        assertEquals("MRS_PINK", result.path("payload").path("characterType").asText());
+        assertTrue(result.path("payload").path("ready").asBoolean());
+    }
+
+    @Test
+    void setCharacterReady_success_playerWithoutCharacter() {
+
+        authorizeSession("sess", "p1");
+        when(lobbyManager.setCharacterTypeAndStatusReady("p1", CharacterType.MRS_PINK))
+                .thenReturn(true);
+        when(lobbyManager.getAvailableCharacters()).thenReturn(Collections.emptyList());
+
+        Player p1 = makePlayer("p1", false);
+        lenient().when(p1.getCharacter()).thenReturn(null); // kein Charakter!
+        lenient().when(p1.isReady()).thenReturn(false);
+        when(lobbyManager.getPlayers()).thenReturn(List.of(p1));
+        when(lobbyManager.getGame()).thenReturn(mock(Game.class));
+
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("playerId", "p1");
+        payload.put("characterType", "MRS_PINK");
+
+        ObjectNode result = gameServer.setCharacterTypeAndStatusReady(payload, "sess");
+
+        assertEquals("SET_CHARACTER_TYPE_AND_STATUS_READY", result.get("type").asText());
+    }
+
+    @Test
+    void setCharacterReady_playerNotFound_returnsError() {
+
+        authorizeSession("sess", "p1");
+        when(lobbyManager.setCharacterTypeAndStatusReady("p1", CharacterType.MRS_PINK))
+                .thenReturn(false);
+
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("playerId", "p1");
+        payload.put("characterType", "MRS_PINK");
+
+        ObjectNode result = gameServer.setCharacterTypeAndStatusReady(payload, "sess");
+
+        assertEquals("SET_READY_ERROR", result.get("type").asText());
+        assertEquals("Player not found", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void setCharacterReady_invalidCharacterType_returnsError() {
+
+        authorizeSession("sess", "p1");
+
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("playerId", "p1");
+        payload.put("characterType", "INVALID_TYPE"); // existiert nicht!
+
+        ObjectNode result = gameServer.setCharacterTypeAndStatusReady(payload, "sess");
+
+        assertEquals("SET_READY_ERROR", result.get("type").asText());
+        assertEquals("Invalid character type", result.path("payload").path("reason").asText());
+    }
+
 
     // start tests 969 - 1012
     @Test
