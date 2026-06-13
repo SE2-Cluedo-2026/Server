@@ -456,6 +456,7 @@ class GameServerTest {
 
  */
 
+
     @Test
     void cheatAttempt_ownSuggestion_returnsError() {
         authorizeSession("sess", "p1");
@@ -741,6 +742,154 @@ class GameServerTest {
         assertEquals("CHEAT_RESULT_ERROR", result.get("type").asText());
         assertTrue(result.path("payload").path("reason").asText().contains("timeout"));
     }
+
+    @Test
+    void endTurn_cancelsScheduledFuture_whenFutureExistsAndNotDone() {
+        Game game = mock(Game.class);
+        ScheduledFuture<?> future = mock(ScheduledFuture.class);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getGameId()).thenReturn("game1");
+        when(game.getTurnManager()).thenReturn(TurnManager.getINSTANCE());
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+        when(future.isDone()).thenReturn(false);
+
+        Map<String, ScheduledFuture<?>> scheduled = new ConcurrentHashMap<>();
+        scheduled.put("game1", future);
+        ReflectionTestUtils.setField(gameServer, "scheduledEndTurns", scheduled);
+
+        ObjectNode result = gameServer.endTurn();
+
+        assertEquals(GameMessageType.END_TURN.toString(), result.get("type").asText());
+        verify(future).cancel(false);
+    }
+
+    @Test
+    void endTurn_doesNotCancelFuture_whenFutureIsDone() {
+        Game game = mock(Game.class);
+        ScheduledFuture<?> future = mock(ScheduledFuture.class);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getGameId()).thenReturn("game1");
+        when(game.getTurnManager()).thenReturn(TurnManager.getINSTANCE());
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+        when(future.isDone()).thenReturn(true);
+
+        Map<String, ScheduledFuture<?>> scheduled = new ConcurrentHashMap<>();
+        scheduled.put("game1", future);
+        ReflectionTestUtils.setField(gameServer, "scheduledEndTurns", scheduled);
+
+        ObjectNode result = gameServer.endTurn();
+
+        assertEquals(GameMessageType.END_TURN.toString(), result.get("type").asText());
+        verify(future, never()).cancel(false);
+    }
+
+    @Test
+    void endTurn_withNoScheduledFuture_executesNormally() {
+        Game game = mock(Game.class);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getGameId()).thenReturn("game1");
+        when(game.getTurnManager()).thenReturn(TurnManager.getINSTANCE());
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+
+        Map<String, ScheduledFuture<?>> scheduled = new ConcurrentHashMap<>();
+        ReflectionTestUtils.setField(gameServer, "scheduledEndTurns", scheduled);
+
+        ObjectNode result = gameServer.endTurn();
+
+        assertEquals(GameMessageType.END_TURN.toString(), result.get("type").asText());
+    }
+
+    @Test
+    void endTurn_whenGameThrowsIllegalStateException_returnsError() {
+        Game game = mock(Game.class);
+
+        when(lobbyManager.getGame()).thenReturn(game, game);
+        when(game.getGameId()).thenReturn("game1");
+
+        doThrow(new IllegalStateException("Game must be running to end turn"))
+                .when(game).endTurn();
+
+        ObjectNode result = gameServer.endTurn();
+
+        assertEquals("END_TURN_ERROR", result.get("type").asText());
+        assertEquals(
+                "Game must be running to end turn",
+                result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void scheduleGameReset_whenGameExists_abortsGameAndSendsMessage() {
+        Game game = mock(Game.class);
+        Player player = mock(Player.class);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getStatus()).thenReturn(GameStatus.LOBBY);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+        when(game.getAvailableCharacters()).thenReturn(List.of(CharacterType.MRS_PINK));
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        when(player.getPlayerId()).thenReturn("p1");
+        when(player.isReady()).thenReturn(false);
+        when(player.getCharacter()).thenReturn(null);
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleGameReset", 0);
+
+        verify(game, timeout(500)).abort();
+        verify(dbService, timeout(500))
+                .updateGameStatus(GameStatus.LOBBY.toString(), TurnPhase.WAITING_FOR_ROLL.toString());
+        verify(messagingTemplate, timeout(500))
+                .convertAndSend(eq(TOPIC_GAME_RESPONSE), any(ObjectNode.class));
+    }
+
+    @Test
+    void scheduleGameReset_whenMessagingTemplateIsNull_doesNotSendMessage() {
+        GameServer serverWithoutMessaging =
+                new GameServer(dbService, null, eventListener);
+
+        ReflectionTestUtils.setField(serverWithoutMessaging, "lobbyManager", lobbyManager);
+
+        Game game = mock(Game.class);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getStatus()).thenReturn(GameStatus.LOBBY);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+        when(game.getAvailableCharacters()).thenReturn(Collections.emptyList());
+        when(game.getPlayers()).thenReturn(Collections.emptyList());
+
+        ReflectionTestUtils.invokeMethod(serverWithoutMessaging, "scheduleGameReset", 0);
+
+        verify(game, timeout(500)).abort();
+        verify(dbService, timeout(500))
+                .updateGameStatus(GameStatus.LOBBY.toString(), TurnPhase.WAITING_FOR_ROLL.toString());
+    }
+
+    @Test
+    void scheduleGameReset_whenExceptionOccurs_doesNotCrashScheduler() {
+        Game game = mock(Game.class);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        doThrow(new RuntimeException("abort failed")).when(game).abort();
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleGameReset", 0);
+
+        verify(game, timeout(500)).abort();
+    }
+
+    @Test
+    void scheduleGameReset_whenGameIsNull_doesNothing() throws Exception {
+        when(lobbyManager.getGame()).thenReturn(null);
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleGameReset", 0);
+
+        Thread.sleep(100);
+
+        verify(dbService, never()).updateGameStatus(anyString(), anyString());
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+    }
+
     //end tests 1014-1193
 
 
