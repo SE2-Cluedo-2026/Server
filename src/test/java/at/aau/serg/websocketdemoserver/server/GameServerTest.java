@@ -335,6 +335,70 @@ class GameServerTest {
         assertEquals("SET_READY_ERROR", result.get("type").asText());
         assertEquals("Invalid character type", result.path("payload").path("reason").asText());
     }
+    @Test
+    void leaveLobby_gameRunning_playerInGame_returnsRemoved() {
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(game.playerAlreadyJoined("p1")).thenReturn(true);
+
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("playerId", "p1");
+
+
+        ObjectNode result = gameServer.leaveLobby(payload);
+
+
+        assertEquals("PLAYER_REMOVED", result.get("type").asText());
+    }
+
+    @Test
+    void leaveLobby_success_playerRemoved() {
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
+        when(lobbyManager.leaveLobby("p1")).thenReturn(true); // Spieler gefunden und entfernt
+
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("playerId", "p1");
+
+        ObjectNode result = gameServer.leaveLobby(payload);
+
+        assertEquals("PLAYER_REMOVED", result.get("type").asText());
+
+    }
+
+    @Test
+    void leaveLobby_playerNotFound_returnsLeaveError() {
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
+        when(lobbyManager.leaveLobby("p1")).thenReturn(false);
+
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("playerId", "p1");
+
+        ObjectNode result = gameServer.leaveLobby(payload);
+
+        assertEquals("LEAVE_ERROR", result.get("type").asText());
+    }
+
+    @Test
+    void leaveLobby_exception_returnsError() {
+
+        when(lobbyManager.getGame()).thenThrow(new RuntimeException("db error"));
+
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("playerId", "p1");
+
+        ObjectNode result = gameServer.leaveLobby(payload);
+
+        assertEquals("LEAVE_LOBBY_ERROR", result.get("type").asText());
+        assertTrue(result.path("payload").path("reason").asText().contains("db error"));
+    }
 
 
     // start tests 969 - 1012
@@ -455,6 +519,7 @@ class GameServerTest {
                         .has("characterType")
         );
     }
+
     @Test
     void testAddLobbyResetPayloadDirectly() {
         Game game = mock(Game.class);
@@ -474,6 +539,7 @@ class GameServerTest {
 
         assertEquals("LOBBY", payload.get("status").asText());
     }
+    // end tests  969 - 1012
 
     // start tests 744-807
     @Test
