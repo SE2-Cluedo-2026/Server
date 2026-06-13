@@ -79,6 +79,168 @@ class GameServerTest {
         ReflectionTestUtils.setField(turnManager, "movesRemaining", 0);
         ReflectionTestUtils.setField(turnManager, "phase", TurnPhase.WAITING_FOR_ROLL);
     }
+    // start tests 76-170
+    @Test
+    void joinLobby_missingPlayerKey_returnsError() {
+        ObjectNode payload = mapper.createObjectNode();
+
+        ObjectNode result = gameServer.joinLobby(payload);
+
+        assertEquals("JOIN_LOBBY_ERROR", result.get("type").asText());
+        assertTrue(result.path("payload").path("reason").asText().startsWith("Failed to join lobby:"));
+    }
+
+    @Test
+    void joinLobby_gameRunningAndPlayerInGame_returnsRejoinRunningResponse() {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(lobbyManager.isPlayerInGame("p1")).thenReturn(true);
+        when(game.getTurnManager()).thenReturn(TurnManager.getINSTANCE());
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+
+        Player p1 = mock(Player.class);
+        when(p1.getPlayerId()).thenReturn("p1");
+        when(p1.getCharacter()).thenReturn(CharacterType.MRS_PINK);
+        when(game.getPlayers()).thenReturn(List.of(p1));
+
+        ObjectNode result = gameServer.joinLobby(joinLobbyPayload("p1"));
+
+        verify(eventListener).onPlayerRejoined("p1");
+        assertEquals(LobbyMessageType.PLAYER_REJOINED_RUNNING.toString(), result.get("type").asText());
+        assertEquals("RUNNING", result.path("payload").path("gameStatus").asText());
+    }
+
+    @Test
+    void joinLobby_gameRunningAndPlayerNotInGame_returnsGameFull() {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(lobbyManager.isPlayerInGame("p2")).thenReturn(false);
+
+        ObjectNode result = gameServer.joinLobby(joinLobbyPayload("p2"));
+
+        assertEquals(LobbyMessageType.GAME_FULL.toString(), result.get("type").asText());
+        assertEquals("p2", result.path("payload").path("playerId").asText());
+        assertEquals("A game is currently in progress", result.path("payload").path("message").asText());
+    }
+
+    @Test
+    void joinLobby_lobbyFull_returnsGameFull() {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
+        when(lobbyManager.isGameFull()).thenReturn(true);
+
+        ObjectNode result = gameServer.joinLobby(joinLobbyPayload("p3"));
+
+        assertEquals(LobbyMessageType.GAME_FULL.toString(), result.get("type").asText());
+        assertEquals("p3", result.path("payload").path("playerId").asText());
+        assertEquals("Lobby is full", result.path("payload").path("message").asText());
+    }
+
+    @Test
+    void joinLobby_newPlayer_savesGameAndReturnsNewPlayerJoined() {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
+        when(lobbyManager.isGameFull()).thenReturn(false);
+        when(lobbyManager.addPlayer("p4")).thenReturn(true);
+        when(lobbyManager.getAvailableCharacters()).thenReturn(List.of(CharacterType.MRS_PINK, CharacterType.DR_RED));
+
+        Player existing = mock(Player.class);
+        when(existing.getPlayerId()).thenReturn("p1");
+        when(existing.isReady()).thenReturn(true);
+        when(existing.getCharacter()).thenReturn(CharacterType.MRS_LAVENDER);
+        when(lobbyManager.getPlayers()).thenReturn(List.of(existing));
+
+        ObjectNode result = gameServer.joinLobby(joinLobbyPayload("p4"));
+
+        assertEquals(LobbyMessageType.NEW_PLAYER_JOINED.toString(), result.get("type").asText());
+        assertEquals(2, result.path("payload").path("availableCharacters").size());
+        assertEquals(1, result.path("payload").path("existingPlayers").size());
+        assertEquals("MRS_LAVENDER", result.path("payload").path("existingPlayers").get(0).path("characterType").asText());
+        verify(dbService).saveGame(game);
+    }
+
+    @Test
+    void joinLobby_rejoiningPlayerWithoutCharacter_returnsPlayerRejoinedWithAvailableCharacters() {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
+        when(lobbyManager.isGameFull()).thenReturn(false);
+        when(lobbyManager.addPlayer("p1")).thenReturn(false);
+        when(lobbyManager.getAvailableCharacters()).thenReturn(List.of(CharacterType.MRS_PINK));
+
+        Player p1 = mock(Player.class);
+        when(p1.getPlayerId()).thenReturn("p1");
+        when(p1.getCharacter()).thenReturn(null);
+        when(lobbyManager.getPlayers()).thenReturn(List.of(p1));
+        when(game.getPlayers()).thenReturn(List.of(p1));
+
+        ObjectNode result = gameServer.joinLobby(joinLobbyPayload("p1"));
+
+        assertEquals(LobbyMessageType.PLAYER_REJOINED.toString(), result.get("type").asText());
+        assertEquals("LOBBY", result.path("payload").path("gameStatus").asText());
+        assertEquals(1, result.path("payload").path("availableCharacters").size());
+    }
+
+    @Test
+    void joinLobby_rejoiningPlayerWithCharacter_doesNotResendAvailableCharacters() {
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
+        when(lobbyManager.isGameFull()).thenReturn(false);
+        when(lobbyManager.addPlayer("p1")).thenReturn(false);
+        when(lobbyManager.getAvailableCharacters()).thenReturn(Collections.emptyList());
+
+        Player p1 = mock(Player.class);
+        when(p1.getPlayerId()).thenReturn("p1");
+        when(p1.getCharacter()).thenReturn(CharacterType.MRS_PINK);
+        when(lobbyManager.getPlayers()).thenReturn(List.of(p1));
+        when(game.getPlayers()).thenReturn(List.of(p1));
+
+        ObjectNode result = gameServer.joinLobby(joinLobbyPayload("p1"));
+
+        assertEquals(LobbyMessageType.PLAYER_REJOINED.toString(), result.get("type").asText());
+        assertEquals("LOBBY", result.path("payload").path("gameStatus").asText());
+        assertEquals(0, result.path("payload").path("availableCharacters").size());
+    }
+
+    @Test
+    void isAuthorized_matchingPlayerId_returnsTrue() {
+        when(eventListener.getPlayerIdForSession("sess1")).thenReturn("p1");
+
+        boolean result = ReflectionTestUtils.invokeMethod(gameServer, "isAuthorized", "sess1", "p1");
+
+        assertTrue(result);
+    }
+
+    @Test
+    void isAuthorized_mismatchedPlayerId_returnsFalse() {
+        when(eventListener.getPlayerIdForSession("sess1")).thenReturn("p2");
+
+        boolean result = ReflectionTestUtils.invokeMethod(gameServer, "isAuthorized", "sess1", "p1");
+
+        assertFalse(result);
+    }
+
+    @Test
+    void authError_buildsUnauthorizedResponse() {
+        ObjectNode result = ReflectionTestUtils.invokeMethod(gameServer, "authError", "SOME_ERROR");
+
+        assertEquals("SOME_ERROR", result.get("type").asText());
+        assertEquals("Unauthorized: you can only act on your own behalf",
+                result.path("payload").path("reason").asText());
+    }
+
+    private ObjectNode joinLobbyPayload(String playerKey) {
+        ObjectNode p = mapper.createObjectNode();
+        p.put("playerKey", playerKey);
+        return p;
+    }
+
+
     // start tests 969 - 1012
     @Test
     void buildEffectivePlayers_cheaterGetsExcludedAndUsesCheat() {
