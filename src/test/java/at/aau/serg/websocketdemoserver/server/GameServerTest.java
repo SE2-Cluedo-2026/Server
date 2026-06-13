@@ -359,6 +359,25 @@ class GameServerTest {
                         .has("characterType")
         );
     }
+    @Test
+    void testAddLobbyResetPayloadDirectly() {
+        Game game = mock(Game.class);
+        ObjectNode payload = mapper.createObjectNode();
+
+        when(game.getStatus()).thenReturn(GameStatus.LOBBY);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+        when(game.getAvailableCharacters()).thenReturn(List.of());
+        when(game.getPlayers()).thenReturn(List.of());
+
+        ReflectionTestUtils.invokeMethod(
+                gameServer,
+                "addLobbyResetPayload",
+                payload,
+                game
+        );
+
+        assertEquals("LOBBY", payload.get("status").asText());
+    }
 
     //start tests 1014-1193
     @Test
