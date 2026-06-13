@@ -129,6 +129,74 @@ class GameServerTest {
         assertEquals(1, result.size());
         assertTrue(result.contains(player));
     }
+    @Test
+    void addLobbyResetPayload_playerWithCharacter() {
+        ObjectNode payload = mapper.createObjectNode();
+
+        Game game = mock(Game.class);
+        Player player = mock(Player.class);
+
+        when(game.getStatus()).thenReturn(GameStatus.LOBBY);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+
+        when(game.getAvailableCharacters())
+                .thenReturn(List.of(CharacterType.MRS_PINK));
+
+        when(game.getPlayers())
+                .thenReturn(List.of(player));
+
+        when(player.getPlayerId()).thenReturn("p1");
+        when(player.isReady()).thenReturn(true);
+        when(player.getCharacter()).thenReturn(CharacterType.MRS_PINK);
+
+        ReflectionTestUtils.invokeMethod(
+                gameServer,
+                "addLobbyResetPayload",
+                payload,
+                game
+        );
+
+        assertEquals(
+                "MRS_PINK",
+                payload.path("existingPlayers")
+                        .get(0)
+                        .path("characterType")
+                        .asText()
+        );
+    }
+    @Test
+    void addLobbyResetPayload_playerWithoutCharacter() {
+        ObjectNode payload = mapper.createObjectNode();
+
+        Game game = mock(Game.class);
+        Player player = mock(Player.class);
+
+        when(game.getStatus()).thenReturn(GameStatus.LOBBY);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+
+        when(game.getAvailableCharacters())
+                .thenReturn(List.of());
+
+        when(game.getPlayers())
+                .thenReturn(List.of(player));
+
+        when(player.getPlayerId()).thenReturn("p1");
+        when(player.isReady()).thenReturn(false);
+        when(player.getCharacter()).thenReturn(null);
+
+        ReflectionTestUtils.invokeMethod(
+                gameServer,
+                "addLobbyResetPayload",
+                payload,
+                game
+        );
+
+        assertFalse(
+                payload.path("existingPlayers")
+                        .get(0)
+                        .has("characterType")
+        );
+    }
 
     //start tests 1014-1193
     @Test
