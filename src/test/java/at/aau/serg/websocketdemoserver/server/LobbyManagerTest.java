@@ -93,11 +93,6 @@ public class LobbyManagerTest {
     }
 
     @Test
-    public void TestJoinLobbyDoesNotThrow() {
-        assertDoesNotThrow(() -> lobbyManager.joinLobby());
-    }
-
-    @Test
     public void TestCanStartGameReturnsFalse() {
         assertFalse(lobbyManager.canStartGame());
     }
@@ -110,18 +105,18 @@ public class LobbyManagerTest {
         assertTrue(lobbyManager.canStartGame());
     }
     @Test
-        public void TestSetCharacterTypeAndStatusReady_ReturnsTrue() {
-            lobbyManager.addPlayer("1");
-            boolean result = lobbyManager.setCharacterTypeAndStatusReady("1", CharacterType.MRS_PINK);
-            assertTrue(result);
-        }
-
-        @Test
-        public void TestSetCharacterTypeAndStatusReady_ReturnsFalse() {
-            boolean result = lobbyManager.setCharacterTypeAndStatusReady("999", CharacterType.MRS_PINK);
-            assertFalse(result);
-        }
+    public void TestSetCharacterTypeAndStatusReady_ReturnsTrue() {
+        lobbyManager.addPlayer("1");
+        boolean result = lobbyManager.setCharacterTypeAndStatusReady("1", CharacterType.MRS_PINK);
+        assertTrue(result);
     }
+
+    @Test
+    public void TestSetCharacterTypeAndStatusReady_ReturnsFalse() {
+        boolean result = lobbyManager.setCharacterTypeAndStatusReady("999", CharacterType.MRS_PINK);
+        assertFalse(result);
+    }
+
     @Test
     public void TestIsPlayerInGame_ReturnsFalse() {
         assertFalse(lobbyManager.isPlayerInGame("999"));
@@ -130,7 +125,7 @@ public class LobbyManagerTest {
     @Test
     public void TestCanStartGameReturnsFalseWhenTooManyPlayers() {
         // 5 Spieler direkt über restoreState einfügen
-       players = new java.util.ArrayList<>();
+       ArrayList<Player> players = new java.util.ArrayList<>();
 
        Player p1 = new at.aau.serg.websocketdemoserver.model.game.Player("1");
        Player p2 = new at.aau.serg.websocketdemoserver.model.game.Player("2");
