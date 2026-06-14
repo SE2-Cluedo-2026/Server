@@ -84,4 +84,44 @@ public class WebSocketBrokerControllerTest {
 
         assertNull(controller.routeGameMessage(message));
     }
+
+    @Test
+    public void testRouteLobbyMessage_UnknownType_ReturnsLobbyError() {
+        LobbyMessage message = mock(LobbyMessage.class);
+        when(message.getType()).thenReturn(null);
+        when(message.getPayload()).thenReturn(mapper.createObjectNode());
+
+        ObjectNode response = controller.routeLobbyMessage(message, "test-session-id");
+
+        assertEquals("LOBBY_ERROR", response.get("type").asText());
+        assertTrue(response.get("payload").get("reason").asText().contains("Unknown lobby message type"));
+    }
+
+    @Test
+    public void testRouteGameMessage_UnknownType_ReturnsGameError() {
+        GameMessage message = mock(GameMessage.class);
+        when(message.getType()).thenReturn(null);
+        when(message.getPayload()).thenReturn(mapper.createObjectNode());
+
+        ObjectNode response = controller.routeGameMessage(message);
+
+        assertEquals("GAME_ERROR", response.get("type").asText());
+        assertTrue(response.get("payload").get("reason").asText().contains("Unknown game message type"));
+    }
+
+    @Test
+    public void testHandleLobbyException_ReturnsTypedErrorResponse() {
+        ObjectNode response = controller.handleLobbyException(new RuntimeException("error"));
+
+        assertEquals("LOBBY_ERROR", response.get("type").asText());
+        assertEquals("Server error: error", response.get("payload").get("reason").asText());
+    }
+
+    @Test
+    public void testHandleGameException_ReturnsTypedErrorResponse() {
+        ObjectNode response = controller.handleGameException(new RuntimeException("error"));
+
+        assertEquals("GAME_ERROR", response.get("type").asText());
+        assertEquals("Server error: error", response.get("payload").get("reason").asText());
+    }
 }
