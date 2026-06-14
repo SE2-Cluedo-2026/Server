@@ -651,9 +651,27 @@ public class GameServer {
                     pos.setBoardPosition(0, 0);
                 }
             }
-            player.setCurrentPosition(pos);
-            game.getTurnManager().decrementMove(isInRoom);
+            int distance = 1;
 
+            if (!isInRoom && pos.getPositionType() == PositionType.BOARD) {
+                Position current = player.getCurrentPosition();
+
+                if (current != null && current.getPositionType() == PositionType.BOARD) {
+                    distance = Math.abs(current.getX() - pos.getX())
+                            + Math.abs(current.getY() - pos.getY());
+                }
+
+                if (distance < 1 || distance > game.getTurnManager().getMovesRemaining()) {
+                    response.put("type", "MOVE_ERROR");
+                    responsePayload.put(REASON, "Move exceeds remaining dice steps");
+                    response.set(PAYLOAD, responsePayload);
+                    return response;
+                }
+            }
+            player.setCurrentPosition(pos);
+            for (int i = 0; i < distance; i++) {
+                game.getTurnManager().decrementMove(isInRoom);
+            }
             dbService.updatePlayerPosition(playerId, player.getCurrentPosition());
             dbService.updateCurrentPlayer(
                     game.getTurnManager().getCurrentPlayerId(),
