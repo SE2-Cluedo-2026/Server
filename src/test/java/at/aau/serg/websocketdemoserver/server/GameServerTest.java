@@ -293,7 +293,7 @@ class GameServerTest {
         when(lobbyManager.getAvailableCharacters()).thenReturn(Collections.emptyList());
 
         Player p1 = makePlayer("p1", false);
-        lenient().when(p1.getCharacter()).thenReturn(null); // kein Charakter!
+        lenient().when(p1.getCharacter()).thenReturn(null);
         lenient().when(p1.isReady()).thenReturn(false);
         when(lobbyManager.getPlayers()).thenReturn(List.of(p1));
         when(lobbyManager.getGame()).thenReturn(mock(Game.class));
@@ -331,7 +331,7 @@ class GameServerTest {
 
         ObjectNode payload = mapper.createObjectNode();
         payload.put("playerId", "p1");
-        payload.put("characterType", "INVALID_TYPE"); // existiert nicht!
+        payload.put("characterType", "INVALID_TYPE");
 
         ObjectNode result = gameServer.setCharacterTypeAndStatusReady(payload, "sess");
 
@@ -362,7 +362,7 @@ class GameServerTest {
         Game game = mock(Game.class);
         when(lobbyManager.getGame()).thenReturn(game);
         when(game.isRunning()).thenReturn(false);
-        when(lobbyManager.leaveLobby("p1")).thenReturn(true); // Spieler gefunden und entfernt
+        when(lobbyManager.leaveLobby("p1")).thenReturn(true);
 
         ObjectNode payload = mapper.createObjectNode();
         payload.put("playerId", "p1");
@@ -1809,46 +1809,6 @@ class GameServerTest {
         assertEquals("CHEAT_ATTEMPT_ERROR", result.get("type").asText());
         assertEquals("No active suggestion to cheat on", result.path("payload").path("reason").asText());
     }
-/*
-    @Test
-    void cheatAttempt_playerNotFound_returnsError() {
-        authorizeSession("sess", "ghost");
-        Game game = mock(Game.class);
-        when(lobbyManager.getGame()).thenReturn(game);
-        when(game.isRunning()).thenReturn(true);
-        Suggestion suggestion = mock(Suggestion.class);
-        when(suggestion.getSuggester()).thenReturn(null);
-        setPendingSuggestion(suggestion);
-        when(game.getPlayers()).thenReturn(Collections.emptyList());
-
-        ObjectNode result = gameServer.handleCheatAttempt(payloadWithPlayerId("ghost"), "sess");
-
-        assertEquals("CHEAT_ATTEMPT_ERROR", result.get("type").asText());
-        assertEquals("Player not found", result.path("payload").path("reason").asText());
-    }
-
-
-
-    @Test
-    void cheatAttempt_eliminatedPlayer_returnsError() {
-        authorizeSession("sess", "p1");
-        Game game = mock(Game.class);
-        when(lobbyManager.getGame()).thenReturn(game);
-        when(game.isRunning()).thenReturn(true);
-        Suggestion suggestion = mock(Suggestion.class);
-        when(suggestion.getSuggester()).thenReturn(null);
-        setPendingSuggestion(suggestion);
-        Player p1 = makePlayer("p1", true);
-        when(game.getPlayers()).thenReturn(List.of(p1));
-
-        ObjectNode result = gameServer.handleCheatAttempt(payloadWithPlayerId("p1"), "sess");
-
-        assertEquals("CHEAT_ATTEMPT_ERROR", result.get("type").asText());
-        assertEquals("Eliminated players cannot cheat", result.path("payload").path("reason").asText());
-    }
-
- */
-
 
     @Test
     void cheatAttempt_ownSuggestion_returnsError() {
@@ -1993,7 +1953,7 @@ class GameServerTest {
         Player p2 = makePlayer("p2", false);
         when(p2.getCards()).thenReturn(List.of(card));
         Player p1 = makePlayer("p1", false);
-        when(p1.getSeenCards()).thenReturn(List.of(card)); // bereits gesehen → fallback
+        when(p1.getSeenCards()).thenReturn(List.of(card));
         when(game.getPlayers()).thenReturn(List.of(p2, p1));
         when(game.getTurnManager()).thenReturn(TurnManager.getINSTANCE());
 

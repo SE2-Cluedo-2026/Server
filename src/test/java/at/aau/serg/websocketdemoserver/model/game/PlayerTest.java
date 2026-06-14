@@ -55,7 +55,7 @@ public class PlayerTest {
     public void testSetAndGetCurrentPositionRoom() {
         Player player = new Player("1");
         Position position = new Position();
-        position.setRoomType(RoomType.KITCHEN); // passe den RoomType-Wert an dein Enum an
+        position.setRoomType(RoomType.KITCHEN);
         player.setCurrentPosition(position);
 
         Position result = player.getCurrentPosition();

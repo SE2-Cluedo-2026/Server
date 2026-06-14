@@ -13,7 +13,6 @@ public class Position {
     private RoomType room;
 
     public Position() {
-        // Default constructor — fields are set via setBoardPosition() or setRoomType()
     }
 
     public void setBoardPosition(int x, int y) {

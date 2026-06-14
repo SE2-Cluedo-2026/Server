@@ -124,7 +124,6 @@ public class LobbyManagerTest {
 
     @Test
     public void TestCanStartGameReturnsFalseWhenTooManyPlayers() {
-        // 5 Spieler direkt über restoreState einfügen
        ArrayList<Player> players = new java.util.ArrayList<>();
 
        Player p1 = new at.aau.serg.websocketdemoserver.model.game.Player("1");
@@ -137,7 +136,6 @@ public class LobbyManagerTest {
         p2.setCharacter(CharacterType.MRS_LAVENDER);
         p3.setCharacter(CharacterType.DR_RED);
         p4.setCharacter(CharacterType.DR_BLUE);
-        // p5 bleibt ohne Charakter
 
         p1.markReady();
         p2.markReady();

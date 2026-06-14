@@ -71,7 +71,6 @@ public class WebSocketEventListener {
         Game game = Game.getINSTANCE();
 
         if (game.getStatus() != GameStatus.RUNNING) {
-            // Lobby: direkt aus der Spielerliste entfernen und alle Clients benachrichtigen
             if (playerId != null) {
                 boolean removed = game.leaveLobby(playerId);
                 playerToCurrentSession.remove(playerId);

@@ -55,12 +55,10 @@ public class Player {
     }
 
     public void useCheat() {
-        // TODO
         this.cheatUsed = true;
     }
 
     public void eliminate() {
-        // TODO
         this.eliminated = true;
     }
 
