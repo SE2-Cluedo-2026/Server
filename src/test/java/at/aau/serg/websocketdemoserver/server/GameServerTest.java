@@ -1569,7 +1569,95 @@ class GameServerTest {
         assertEquals("MOVE_ERROR", result.get("type").asText());
         assertTrue(result.path("payload").path("reason").asText().contains("boom"));
     }
-    
+
+    @Test
+    void enterRoom_unauthorized_returnsError() {
+        when(eventListener.getPlayerIdForSession("badSession")).thenReturn("other");
+
+        ObjectNode result = gameServer.enterRoom(enterRoomPayload("p1", "KITCHEN"), "badSession");
+
+        assertEquals("ENTER_ROOM_ERROR", result.get("type").asText());
+        assertEquals("Unauthorized: you can only act on your own behalf",
+                result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void enterRoom_playerNotFound_returnsError() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getPlayers()).thenReturn(Collections.emptyList());
+
+        ObjectNode result = gameServer.enterRoom(enterRoomPayload("p1", "KITCHEN"), "sess");
+
+        assertEquals("ENTER_ROOM_ERROR", result.get("type").asText());
+        assertEquals("Player not found", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void enterRoom_invalidRoomId_returnsInvalidRoomError() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        Player player = new Player("p1");
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        ObjectNode result = gameServer.enterRoom(enterRoomPayload("p1", "NOT_A_ROOM"), "sess");
+
+        assertEquals("ENTER_ROOM_ERROR", result.get("type").asText());
+        assertTrue(result.path("payload").path("reason").asText().startsWith("Invalid room:"));
+    }
+
+    @Test
+    void enterRoom_success_updatesPositionAndPhase() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getGameId()).thenReturn("game-1");
+
+        Player player = new Player("p1");
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        TurnManager turnManager = TurnManager.getINSTANCE();
+        when(game.getTurnManager()).thenReturn(turnManager);
+
+        ObjectNode result = gameServer.enterRoom(enterRoomPayload("p1", "LOUNGE"), "sess");
+
+        assertEquals(GameMessageType.ENTER_ROOM.toString(), result.get("type").asText());
+        assertEquals("p1", result.path("payload").path("playerId").asText());
+        assertEquals("LOUNGE", result.path("payload").path("roomId").asText());
+        assertEquals(TurnPhase.IN_ROOM.toString(), result.path("payload").path("currentPhase").asText());
+        assertEquals(RoomType.LOUNGE, player.getCurrentPosition().getRoom());
+
+        verify(dbService).updatePlayerPosition(eq("p1"), any(Position.class));
+        verify(dbService).updateCurrentPlayer(anyInt(), anyInt(), eq(TurnPhase.IN_ROOM.toString()));
+    }
+
+    @Test
+    void enterRoom_unexpectedException_returnsError() {
+        authorizeSession("sess", "p1");
+        when(lobbyManager.getGame()).thenThrow(new RuntimeException("boom"));
+
+        ObjectNode result = gameServer.enterRoom(enterRoomPayload("p1", "KITCHEN"), "sess");
+
+        assertEquals("ENTER_ROOM_ERROR", result.get("type").asText());
+        assertEquals("Error entering room: boom", result.path("payload").path("reason").asText());
+    }
+
+    private ObjectNode movePayload(String playerId, String position) {
+        ObjectNode p = mapper.createObjectNode();
+        p.put("playerId", playerId);
+        p.put("position", position);
+        return p;
+    }
+
+    private ObjectNode enterRoomPayload(String playerId, String roomId) {
+        ObjectNode p = mapper.createObjectNode();
+        p.put("playerId", playerId);
+        p.put("roomId", roomId);
+        return p;
+    }
 // end tests 562-742
 
 
