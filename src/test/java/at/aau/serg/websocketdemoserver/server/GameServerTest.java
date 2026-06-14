@@ -1328,6 +1328,250 @@ class GameServerTest {
 
     // start tests 562-742
 
+    @Test
+    void rollDice_unauthorized_returnsError() {
+        when(eventListener.getPlayerIdForSession("badSession")).thenReturn("other");
+
+        ObjectNode result = gameServer.rollDice(payloadWithPlayerId("p1"), "badSession");
+
+        assertEquals("ROLL_DICE_ERROR", result.get("type").asText());
+        assertEquals("Unauthorized: you can only act on your own behalf",
+                result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void rollDice_gameNotRunning_returnsError() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
+
+        ObjectNode result = gameServer.rollDice(payloadWithPlayerId("p1"), "sess");
+
+        assertEquals("ROLL_DICE_ERROR", result.get("type").asText());
+        assertEquals("Game is not running", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void rollDice_currentPlayerNull_returnsNotYourTurnError() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(game.getCurrentPlayer()).thenReturn(null);
+
+        ObjectNode result = gameServer.rollDice(payloadWithPlayerId("p1"), "sess");
+
+        assertEquals("ROLL_DICE_ERROR", result.get("type").asText());
+        assertEquals("It is not your turn", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void rollDice_notCurrentPlayer_returnsNotYourTurnError() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+
+        Player currentPlayer = makePlayer("p2", false);
+        when(game.getCurrentPlayer()).thenReturn(currentPlayer);
+
+        ObjectNode result = gameServer.rollDice(payloadWithPlayerId("p1"), "sess");
+
+        assertEquals("ROLL_DICE_ERROR", result.get("type").asText());
+        assertEquals("It is not your turn", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void rollDice_notInRollPhase_returnsError() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+
+        Player currentPlayer = makePlayer("p1", false);
+        when(game.getCurrentPlayer()).thenReturn(currentPlayer);
+
+        TurnManager turnManager = TurnManager.getINSTANCE();
+        ReflectionTestUtils.setField(turnManager, "phase", TurnPhase.WAITING_FOR_MOVE);
+        when(game.getTurnManager()).thenReturn(turnManager);
+
+        ObjectNode result = gameServer.rollDice(payloadWithPlayerId("p1"), "sess");
+
+        assertEquals("ROLL_DICE_ERROR", result.get("type").asText());
+        assertEquals("Not in roll phase", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void rollDice_success_returnsRolledValueAndUpdatesPhase() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+
+        Player currentPlayer = makePlayer("p1", false);
+        when(game.getCurrentPlayer()).thenReturn(currentPlayer);
+
+        TurnManager turnManager = TurnManager.getINSTANCE();
+        when(game.getTurnManager()).thenReturn(turnManager);
+
+        ObjectNode result = gameServer.rollDice(payloadWithPlayerId("p1"), "sess");
+
+        assertEquals(GameMessageType.ROLL_DICE.toString(), result.get("type").asText());
+        assertEquals("p1", result.path("payload").path("playerId").asText());
+        assertEquals(TurnPhase.WAITING_FOR_MOVE.toString(), result.path("payload").path("currentPhase").asText());
+
+        int value = result.path("payload").path("value").asInt();
+        assertTrue(value >= 2 && value <= 12);
+        assertEquals(value, turnManager.getDiceValue());
+
+        verify(dbService).updateCurrentPlayer(
+                turnManager.getCurrentPlayerId(),
+                value,
+                TurnPhase.WAITING_FOR_MOVE.toString()
+        );
+    }
+
+    @Test
+    void rollDice_exception_returnsError() {
+        authorizeSession("sess", "p1");
+        when(lobbyManager.getGame()).thenThrow(new RuntimeException("boom"));
+
+        ObjectNode result = gameServer.rollDice(payloadWithPlayerId("p1"), "sess");
+
+        assertEquals("ROLL_DICE_ERROR", result.get("type").asText());
+        assertTrue(result.path("payload").path("reason").asText().contains("boom"));
+    }
+
+    @Test
+    void move_unauthorized_returnsError() {
+        when(eventListener.getPlayerIdForSession("badSession")).thenReturn("other");
+
+        ObjectNode result = gameServer.move(movePayload("p1", "1,1"), "badSession");
+
+        assertEquals("MOVE_ERROR", result.get("type").asText());
+        assertEquals("Unauthorized: you can only act on your own behalf",
+                result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void move_playerNotFound_returnsError() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getPlayers()).thenReturn(Collections.emptyList());
+
+        ObjectNode result = gameServer.move(movePayload("p1", "1,1"), "sess");
+
+        assertEquals("MOVE_ERROR", result.get("type").asText());
+        assertEquals("Player not found", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void move_boardPositionOnHallwayField_decrementsMovesAndEndsTurn() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        Player player = new Player("p1");
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        TurnManager turnManager = TurnManager.getINSTANCE();
+        ReflectionTestUtils.setField(turnManager, "movesRemaining", 1);
+        when(game.getTurnManager()).thenReturn(turnManager);
+        when(game.getBoard()).thenReturn(Board.getINSTANCE());
+
+        ObjectNode result = gameServer.move(movePayload("p1", "1,1"), "sess");
+
+        assertEquals(GameMessageType.MOVE.toString(), result.get("type").asText());
+        assertEquals("p1", result.path("payload").path("playerId").asText());
+        assertEquals("1,1", result.path("payload").path("position").asText());
+        assertEquals(0, result.path("payload").path("movesLeft").asInt());
+        assertEquals(TurnPhase.TURN_ENDED.toString(), result.path("payload").path("currentPhase").asText());
+
+        assertEquals(1, player.getCurrentPosition().getX());
+        assertEquals(1, player.getCurrentPosition().getY());
+
+        verify(dbService).updatePlayerPosition(eq("p1"), any(Position.class));
+        verify(dbService).updateCurrentPlayer(anyInt(), anyInt(), anyString());
+    }
+
+    @Test
+    void move_boardPositionOnDoorFieldWithNoMovesLeft_setsWaitingForMovePhase() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        Player player = new Player("p1");
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        TurnManager turnManager = TurnManager.getINSTANCE();
+        ReflectionTestUtils.setField(turnManager, "movesRemaining", 1);
+        when(game.getTurnManager()).thenReturn(turnManager);
+        when(game.getBoard()).thenReturn(Board.getINSTANCE());
+
+        ObjectNode result = gameServer.move(movePayload("p1", "0,0"), "sess");
+
+        assertEquals(0, result.path("payload").path("movesLeft").asInt());
+        assertEquals(TurnPhase.WAITING_FOR_MOVE.toString(), result.path("payload").path("currentPhase").asText());
+    }
+
+    @Test
+    void move_roomPosition_setsRoomAndInRoomPhase() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        Player player = new Player("p1");
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        TurnManager turnManager = TurnManager.getINSTANCE();
+        ReflectionTestUtils.setField(turnManager, "movesRemaining", 1);
+        when(game.getTurnManager()).thenReturn(turnManager);
+
+        ObjectNode result = gameServer.move(movePayload("p1", "KITCHEN"), "sess");
+
+        assertEquals(GameMessageType.MOVE.toString(), result.get("type").asText());
+        assertEquals("KITCHEN", result.path("payload").path("position").asText());
+        assertEquals(0, result.path("payload").path("movesLeft").asInt());
+        assertEquals(TurnPhase.IN_ROOM.toString(), result.path("payload").path("currentPhase").asText());
+        assertEquals(RoomType.KITCHEN, player.getCurrentPosition().getRoom());
+    }
+
+    @Test
+    void move_invalidPositionString_fallsBackToOriginBoardPosition() {
+        authorizeSession("sess", "p1");
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        Player player = new Player("p1");
+        when(game.getPlayers()).thenReturn(List.of(player));
+
+        TurnManager turnManager = TurnManager.getINSTANCE();
+        ReflectionTestUtils.setField(turnManager, "movesRemaining", 2);
+        when(game.getTurnManager()).thenReturn(turnManager);
+
+        ObjectNode result = gameServer.move(movePayload("p1", "NOT_A_ROOM"), "sess");
+
+        assertEquals(GameMessageType.MOVE.toString(), result.get("type").asText());
+        assertEquals(0, player.getCurrentPosition().getX());
+        assertEquals(0, player.getCurrentPosition().getY());
+        assertEquals(1, result.path("payload").path("movesLeft").asInt());
+    }
+
+    @Test
+    void move_exception_returnsError() {
+        authorizeSession("sess", "p1");
+        when(lobbyManager.getGame()).thenThrow(new RuntimeException("boom"));
+
+        ObjectNode result = gameServer.move(movePayload("p1", "1,1"), "sess");
+
+        assertEquals("MOVE_ERROR", result.get("type").asText());
+        assertTrue(result.path("payload").path("reason").asText().contains("boom"));
+    }
+    
+// end tests 562-742
+
 
     // start tests 744-807
     @Test
