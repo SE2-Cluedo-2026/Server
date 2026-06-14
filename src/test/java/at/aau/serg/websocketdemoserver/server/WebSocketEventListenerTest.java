@@ -78,14 +78,16 @@ class WebSocketEventListenerTest {
     }
 
     @Test
-    void handleDisconnectIgnoresWhenGameNotRunning() {
+    void handleDisconnectRemovesPlayerFromLobbyWhenGameNotRunning() {
+        Player player1 = new Player("player1");
         listener.registerSession("sess1", "player1");
-        game.addPlayer(new Player("player1"));
+        game.addPlayer(player1);
 
         SessionDisconnectEvent event = createDisconnectEvent("sess1");
         listener.handleDisconnect(event);
 
-        verifyNoInteractions(messagingTemplate);
+        assertFalse(game.getPlayers().contains(player1));
+        verify(messagingTemplate).convertAndSend(eq("/topic/lobby-response"), any(ObjectNode.class));
     }
 
     @Test
