@@ -668,6 +668,21 @@ public class GameServer {
                     return response;
                 }
             }
+            if (!isInRoom && pos.getPositionType() == PositionType.BOARD) {
+                for (Player otherPlayer : game.getPlayers()) {
+                    if (!otherPlayer.getPlayerId().equals(playerId)
+                            && otherPlayer.getCurrentPosition() != null
+                            && otherPlayer.getCurrentPosition().getPositionType() == PositionType.BOARD
+                            && otherPlayer.getCurrentPosition().getX() == pos.getX()
+                            && otherPlayer.getCurrentPosition().getY() == pos.getY()) {
+
+                        response.put("type", "MOVE_ERROR");
+                        responsePayload.put(REASON, "Field is already occupied");
+                        response.set(PAYLOAD, responsePayload);
+                        return response;
+                    }
+                }
+            }
             player.setCurrentPosition(pos);
             for (int i = 0; i < distance; i++) {
                 game.getTurnManager().decrementMove(isInRoom);
