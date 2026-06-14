@@ -42,7 +42,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledExecutorService;
-
+import org.mockito.ArgumentCaptor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -398,6 +401,788 @@ class GameServerTest {
 
         assertEquals("LEAVE_LOBBY_ERROR", result.get("type").asText());
         assertTrue(result.path("payload").path("reason").asText().contains("db error"));
+    }
+    //start 337 - 490
+    @Test
+    void startGame_cannotStartGame_returnsStartGameError() {
+        when(lobbyManager.canStartGame()).thenReturn(false);
+
+        ObjectNode result = gameServer.startGame();
+
+        assertEquals(LobbyMessageType.START_GAME_ERROR.toString(), result.get("type").asText());
+        assertEquals("Not all players are ready", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void startGame_unexpectedException_returnsStartGameError() {
+        when(lobbyManager.canStartGame()).thenThrow(new RuntimeException("boom"));
+
+        ObjectNode result = gameServer.startGame();
+
+        assertEquals("START_GAME_ERROR", result.get("type").asText());
+        assertEquals("Failed to start game: boom", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void startGame_canStartGame_returnsGameStartedWithPlayersAndCards() {
+        Game game = mock(Game.class);
+        Player p1 = mock(Player.class);
+        Player p2 = mock(Player.class);
+
+        Card card = new SuspectCard("c1", "MRS_PINK", CharacterType.MRS_PINK);
+
+        when(lobbyManager.canStartGame()).thenReturn(true);
+        when(lobbyManager.getGame()).thenReturn(game);
+
+        when(game.getGameId()).thenReturn("game-1");
+        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+        when(game.getTurnManager()).thenReturn(TurnManager.getINSTANCE());
+        when(game.getPlayers()).thenReturn(List.of(p1, p2));
+
+        when(p1.getPlayerId()).thenReturn("p1");
+        when(p1.getCards()).thenReturn(List.of(card));
+
+        when(p2.getPlayerId()).thenReturn("p2");
+        when(p2.getCards()).thenReturn(null);
+
+        ObjectNode result = gameServer.startGame();
+
+        verify(game).start();
+        verify(dbService).saveGame(game);
+
+        assertEquals(LobbyMessageType.GAME_STARTED.toString(), result.get("type").asText());
+
+        JsonNode payload = result.path("payload");
+        assertEquals("game-1", payload.path("gameId").asText());
+        assertEquals("RUNNING", payload.path("status").asText());
+        assertEquals("WAITING_FOR_ROLL", payload.path("currentPhase").asText());
+        assertEquals(0, payload.path("currentPlayerIndex").asInt());
+
+        assertEquals(2, payload.path("players").size());
+
+        JsonNode firstPlayer = payload.path("players").get(0);
+        assertEquals("p1", firstPlayer.path("playerId").asText());
+        assertEquals(1, firstPlayer.path("cards").size());
+        assertEquals("c1", firstPlayer.path("cards").get(0).path("cardId").asText());
+        assertEquals("MRS_PINK", firstPlayer.path("cards").get(0).path("name").asText());
+        assertEquals("SuspectCard", firstPlayer.path("cards").get(0).path("type").asText());
+
+        JsonNode secondPlayer = payload.path("players").get(1);
+        assertEquals("p2", secondPlayer.path("playerId").asText());
+        assertEquals(0, secondPlayer.path("cards").size());
+    }
+
+    @Test
+    void scheduleAutoEndTurn_withoutGameOrCurrentPlayer_doesNothing() {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+        ReflectionTestUtils.setField(gameServer, "scheduler", scheduler);
+
+        when(lobbyManager.getGame()).thenReturn(null);
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", 1);
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getCurrentPlayer()).thenReturn(null);
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", 1);
+
+        verifyNoInteractions(scheduler);
+    }
+
+    @Test
+    void scheduleAutoEndTurn_cancelsExistingFutureBeforeSchedulingNewOne() {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> oldFuture = mock(ScheduledFuture.class);
+
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> newFuture = mock(ScheduledFuture.class);
+
+        Map<String, ScheduledFuture<?>> scheduled = new ConcurrentHashMap<>();
+        scheduled.put("game-1", oldFuture);
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", scheduler);
+        ReflectionTestUtils.setField(gameServer, "scheduledEndTurns", scheduled);
+
+        when(oldFuture.isDone()).thenReturn(false);
+
+        doReturn(newFuture)
+                .when(scheduler)
+                .schedule(any(Runnable.class), eq(3L), eq(TimeUnit.SECONDS));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", "game-1", "p1", 3);
+
+        verify(oldFuture).cancel(false);
+        assertSame(newFuture, scheduled.get("game-1"));
+    }
+
+    @Test
+    void scheduleSuggestionResolution_withoutGameOrPendingSuggestionDoesNothing() {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> future = mock(ScheduledFuture.class);
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", scheduler);
+
+        ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
+
+        doReturn(future)
+                .when(scheduler)
+                .schedule(runnableCaptor.capture(), eq(5L), eq(TimeUnit.SECONDS));
+
+        when(lobbyManager.getGame()).thenReturn(null);
+        ReflectionTestUtils.setField(gameServer, "pendingSuggestion", mock(Suggestion.class));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleSuggestionResolution", "p1", "game-1");
+
+        runnableCaptor.getValue().run();
+
+        verify(messagingTemplate, never()).convertAndSend(
+                eq(TOPIC_GAME_RESPONSE),
+                any(Object.class)
+        );
+    }
+
+    @Test
+    void scheduleSuggestionResolution_withoutResponder_sendsEmptyResponder() {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> future = mock(ScheduledFuture.class);
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", scheduler);
+
+        Game game = mock(Game.class);
+        CheatManager cheatManager = mock(CheatManager.class);
+
+        Player suggester = new Player("p1");
+        Player otherPlayer = new Player("p2");
+        otherPlayer.setCards(List.of());
+
+        Suggestion suggestion = new Suggestion(
+                suggester,
+                CharacterType.DR_RED,
+                RoomType.KITCHEN,
+                WeaponType.KNIFE
+        );
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getPlayers()).thenReturn(List.of(suggester, otherPlayer));
+        when(game.getCheatManager()).thenReturn(cheatManager);
+        when(cheatManager.hasCheated(anyString())).thenReturn(false);
+
+        ReflectionTestUtils.setField(gameServer, "pendingSuggestion", suggestion);
+
+        ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
+
+        doReturn(future)
+                .when(scheduler)
+                .schedule(runnableCaptor.capture(), eq(5L), eq(TimeUnit.SECONDS));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleSuggestionResolution", "p1", "game-1");
+
+        runnableCaptor.getValue().run();
+
+        ArgumentCaptor<ObjectNode> responseCaptor = ArgumentCaptor.forClass(ObjectNode.class);
+
+        verify(messagingTemplate).convertAndSend(
+                eq(TOPIC_GAME_RESPONSE),
+                (Object) responseCaptor.capture()
+        );
+
+        JsonNode response = responseCaptor.getValue();
+        JsonNode payload = response.path("payload");
+
+        assertEquals(GameMessageType.SUGGESTION_RESULT.toString(), response.path("type").asText());
+        assertEquals("p1", payload.path("suggesterID").asText());
+        assertEquals("DR_RED", payload.path("suspect").asText());
+        assertEquals("KITCHEN", payload.path("room").asText());
+        assertEquals("KNIFE", payload.path("weapon").asText());
+        assertEquals("", payload.path("responderID").asText());
+        assertEquals(0, payload.path("matchingCards").size());
+
+        assertNull(ReflectionTestUtils.getField(gameServer, "pendingSuggestion"));
+    }
+
+    @Test
+    void scheduleAutoEndTurn_validGameAndPlayer_schedulesEndTurn() {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> future = mock(ScheduledFuture.class);
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", scheduler);
+
+        Game game = mock(Game.class);
+        Player currentPlayer = mock(Player.class);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getGameId()).thenReturn("game-1");
+        when(game.getCurrentPlayer()).thenReturn(currentPlayer);
+        when(currentPlayer.getPlayerId()).thenReturn("p1");
+
+        doReturn(future)
+                .when(scheduler)
+                .schedule(any(Runnable.class), eq(7L), eq(TimeUnit.SECONDS));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", 7);
+
+        verify(scheduler).schedule(any(Runnable.class), eq(7L), eq(TimeUnit.SECONDS));
+    }
+
+    @Test
+    void scheduleAutoEndTurn_runnableReturnsWhenGameIsNull() {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> future = mock(ScheduledFuture.class);
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", scheduler);
+
+        ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
+
+        doReturn(future)
+                .when(scheduler)
+                .schedule(captor.capture(), eq(3L), eq(TimeUnit.SECONDS));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", "game-1", "p1", 3);
+
+        when(lobbyManager.getGame()).thenReturn(null);
+
+        captor.getValue().run();
+
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+
+        Map<?, ?> scheduled = (Map<?, ?>) ReflectionTestUtils.getField(gameServer, "scheduledEndTurns");
+        assertFalse(scheduled.containsKey("game-1"));
+    }
+
+    @Test
+    void scheduleAutoEndTurn_runnableReturnsWhenCurrentPlayerIsNull() {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> future = mock(ScheduledFuture.class);
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", scheduler);
+
+        Game game = mock(Game.class);
+
+        ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
+
+        doReturn(future)
+                .when(scheduler)
+                .schedule(captor.capture(), eq(3L), eq(TimeUnit.SECONDS));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", "game-1", "p1", 3);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getCurrentPlayer()).thenReturn(null);
+
+        captor.getValue().run();
+
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+    }
+
+    @Test
+    void scheduleAutoEndTurn_runnableReturnsWhenGameIdChanged() {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> future = mock(ScheduledFuture.class);
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", scheduler);
+
+        Game game = mock(Game.class);
+        Player currentPlayer = mock(Player.class);
+
+        ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
+
+        doReturn(future)
+                .when(scheduler)
+                .schedule(captor.capture(), eq(3L), eq(TimeUnit.SECONDS));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", "game-1", "p1", 3);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getCurrentPlayer()).thenReturn(currentPlayer);
+        when(game.getGameId()).thenReturn("other-game");
+
+        captor.getValue().run();
+
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+    }
+
+    @Test
+    void scheduleAutoEndTurn_runnableReturnsWhenPlayerIdChanged() {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> future = mock(ScheduledFuture.class);
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", scheduler);
+
+        Game game = mock(Game.class);
+        Player currentPlayer = mock(Player.class);
+
+        ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
+
+        doReturn(future)
+                .when(scheduler)
+                .schedule(captor.capture(), eq(3L), eq(TimeUnit.SECONDS));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleAutoEndTurn", "game-1", "p1", 3);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getCurrentPlayer()).thenReturn(currentPlayer);
+        when(game.getGameId()).thenReturn("game-1");
+        when(currentPlayer.getPlayerId()).thenReturn("other-player");
+
+        captor.getValue().run();
+
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+    }
+
+    @Test
+    void scheduleSuggestionResolution_withResponder_sendsMatchingCardsAndSavesSeenCards() {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> future = mock(ScheduledFuture.class);
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", scheduler);
+
+        Game game = mock(Game.class);
+        CheatManager cheatManager = mock(CheatManager.class);
+
+        Player suggester = new Player("p1");
+        Player responder = new Player("p2");
+
+        Card matchingCard = new SuspectCard("c1", "DR_RED", CharacterType.DR_RED);
+        responder.setCards(List.of(matchingCard));
+
+        Suggestion suggestion = new Suggestion(
+                suggester,
+                CharacterType.DR_RED,
+                RoomType.KITCHEN,
+                WeaponType.KNIFE
+        );
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getPlayers()).thenReturn(List.of(suggester, responder));
+        when(game.getCheatManager()).thenReturn(cheatManager);
+        when(cheatManager.hasCheated(anyString())).thenReturn(false);
+
+        ReflectionTestUtils.setField(gameServer, "pendingSuggestion", suggestion);
+
+        ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
+
+        doReturn(future)
+                .when(scheduler)
+                .schedule(captor.capture(), eq(5L), eq(TimeUnit.SECONDS));
+
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleSuggestionResolution", "p1", "game-1");
+
+        captor.getValue().run();
+
+        ArgumentCaptor<ObjectNode> responseCaptor = ArgumentCaptor.forClass(ObjectNode.class);
+
+        verify(messagingTemplate).convertAndSend(
+                eq(TOPIC_GAME_RESPONSE),
+                (Object) responseCaptor.capture()
+        );
+
+        JsonNode payload = responseCaptor.getValue().path("payload");
+
+        assertEquals("p2", payload.path("responderID").asText());
+        assertEquals(1, payload.path("matchingCards").size());
+        assertEquals("c1", payload.path("matchingCards").get(0).path("cardId").asText());
+        assertEquals("DR_RED", payload.path("matchingCards").get(0).path("name").asText());
+        assertEquals("SuspectCard", payload.path("matchingCards").get(0).path("type").asText());
+
+        verify(dbService, times(2)).saveSeenCards(eq("p1"), eq(List.of(matchingCard)));
+        assertNull(ReflectionTestUtils.getField(gameServer, "pendingSuggestion"));
+    }
+
+    @Test
+    void cancelScheduledEndTurn_futureNull_doesNothing() {
+        ReflectionTestUtils.invokeMethod(gameServer, "cancelScheduledEndTurn", "game-1");
+    }
+
+    @Test
+    void cancelScheduledEndTurn_futureDone_doesNotCancel() {
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> future = mock(ScheduledFuture.class);
+
+        Map<String, ScheduledFuture<?>> scheduled = new ConcurrentHashMap<>();
+        scheduled.put("game-1", future);
+
+        ReflectionTestUtils.setField(gameServer, "scheduledEndTurns", scheduled);
+
+        when(future.isDone()).thenReturn(true);
+
+        ReflectionTestUtils.invokeMethod(gameServer, "cancelScheduledEndTurn", "game-1");
+
+        verify(future, never()).cancel(false);
+    }
+
+    //start 809 - 968
+    @Test
+    void handleAccusation_unauthorized_returnsAuthError() {
+        when(eventListener.getPlayerIdForSession("badSession")).thenReturn("other");
+
+        ObjectNode result = gameServer.handleAccusation(accusationPayload("p1"), "badSession");
+
+        assertEquals("ENTER_ROOM_ERROR", result.path("type").asText());
+        assertEquals("Unauthorized: you can only act on your own behalf",
+                result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void handleAccusation_invalidEnum_returnsInvalidError() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        ObjectNode payload = accusationPayload("p1");
+        payload.put("suspect", "INVALID");
+
+        ObjectNode result = gameServer.handleAccusation(payload, "sess");
+
+        assertEquals("ACCUSATION_ERROR", result.path("type").asText());
+        assertEquals("Invalid suspect, room or weapon", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void handleAccusation_gameNotRunning_returnsError() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(false);
+
+        ObjectNode result = gameServer.handleAccusation(accusationPayload("p1"), "sess");
+
+        assertEquals("ACCUSATION_ERROR", result.path("type").asText());
+        assertEquals("Game is not running", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void handleAccusation_accuserNotFound_returnsError() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(game.getPlayers()).thenReturn(List.of(new Player("p2")));
+
+        ObjectNode result = gameServer.handleAccusation(accusationPayload("p1"), "sess");
+
+        assertEquals("ACCUSATION_ERROR", result.path("type").asText());
+        assertEquals("Accuser not found", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void handleAccusation_eliminatedAccuser_returnsError() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        Player p1 = new Player("p1");
+        p1.setEliminated(true);
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(game.getPlayers()).thenReturn(List.of(p1));
+
+        ObjectNode result = gameServer.handleAccusation(accusationPayload("p1"), "sess");
+
+        assertEquals("ACCUSATION_ERROR", result.path("type").asText());
+        assertEquals("Eliminated players cannot make accusations",
+                result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void handleAccusation_correctAccusation_finishesGameAndSchedulesReset() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> future = mock(ScheduledFuture.class);
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", scheduler);
+
+        doReturn(future)
+                .when(scheduler)
+                .schedule(any(Runnable.class), eq(5L), eq(TimeUnit.SECONDS));
+
+        Player p1 = new Player("p1");
+
+        CaseFile caseFile = new CaseFile(
+                new SuspectCard("s1", "DR_RED", CharacterType.DR_RED),
+                new RoomCard("r1", "KITCHEN", RoomType.KITCHEN),
+                new WeaponCard("w1", "KNIFE", WeaponType.KNIFE)
+        );
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(game.getPlayers()).thenReturn(List.of(p1));
+        when(game.getCaseFile()).thenReturn(caseFile);
+        when(game.getGameId()).thenReturn("game-1");
+        when(game.getStatus()).thenReturn(GameStatus.FINISHED);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+
+        ObjectNode result = gameServer.handleAccusation(accusationPayload("p1"), "sess");
+
+        verify(game).finish();
+        verify(dbService).updateGameStatus("FINISHED", "WAITING_FOR_ROLL");
+        verify(scheduler).schedule(any(Runnable.class), eq(5L), eq(TimeUnit.SECONDS));
+
+        assertEquals(GameMessageType.GAME_FINISHED.toString(), result.path("type").asText());
+        assertEquals("p1", result.path("payload").path("winner").asText());
+        assertTrue(result.path("payload").path("correct").asBoolean());
+    }
+
+    @Test
+    void handleAccusation_wrongAccusation_notAllEliminated_eliminatesPlayerAndSchedulesEndTurn() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> future = mock(ScheduledFuture.class);
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", scheduler);
+
+        doReturn(future)
+                .when(scheduler)
+                .schedule(any(Runnable.class), eq(5L), eq(TimeUnit.SECONDS));
+
+        Player p1 = new Player("p1");
+        Player p2 = new Player("p2");
+
+        CaseFile caseFile = new CaseFile(
+                new SuspectCard("s1", "MRS_PINK", CharacterType.MRS_PINK),
+                new RoomCard("r1", "LOUNGE", RoomType.LOUNGE),
+                new WeaponCard("w1", "AX", WeaponType.AX)
+        );
+
+        Game game = mock(Game.class);
+        Player currentPlayer = mock(Player.class);
+
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(game.getPlayers()).thenReturn(List.of(p1, p2));
+        when(game.getCaseFile()).thenReturn(caseFile);
+        when(game.getGameId()).thenReturn("game-1");
+        when(game.allPlayersEliminated()).thenReturn(false);
+        when(game.getCurrentPlayer()).thenReturn(currentPlayer);
+        when(currentPlayer.getPlayerId()).thenReturn("p1");
+
+        ObjectNode result = gameServer.handleAccusation(accusationPayload("p1"), "sess");
+
+        assertTrue(p1.isEliminated());
+        verify(dbService).updatePlayerFlags("p1", true, false, false);
+        verify(scheduler).schedule(any(Runnable.class), eq(5L), eq(TimeUnit.SECONDS));
+
+        assertEquals(GameMessageType.MAKE_ACCUSATION.toString(), result.path("type").asText());
+        assertFalse(result.path("payload").path("correct").asBoolean());
+        assertTrue(result.path("payload").path("eliminated").asBoolean());
+    }
+
+    @Test
+    void handleAccusation_wrongAccusation_allPlayersEliminated_abortsGame() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        Player p1 = new Player("p1");
+        p1.setCharacter(CharacterType.DR_RED);
+
+        CaseFile caseFile = new CaseFile(
+                new SuspectCard("s1", "MRS_PINK", CharacterType.MRS_PINK),
+                new RoomCard("r1", "LOUNGE", RoomType.LOUNGE),
+                new WeaponCard("w1", "AX", WeaponType.AX)
+        );
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.isRunning()).thenReturn(true);
+        when(game.getPlayers()).thenReturn(List.of(p1));
+        when(game.getCaseFile()).thenReturn(caseFile);
+        when(game.getGameId()).thenReturn("game-1");
+        when(game.allPlayersEliminated()).thenReturn(true);
+        when(game.getStatus()).thenReturn(GameStatus.LOBBY);
+        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
+        when(game.getAvailableCharacters()).thenReturn(List.of(CharacterType.MRS_PINK, CharacterType.DR_RED));
+
+        ObjectNode result = gameServer.handleAccusation(accusationPayload("p1"), "sess");
+
+        verify(game).abort();
+        verify(dbService).updateGameStatus("LOBBY", "WAITING_FOR_ROLL");
+
+        assertEquals(GameMessageType.GAME_ABORTED.toString(), result.path("type").asText());
+        assertEquals("All players eliminated", result.path("payload").path("reason").asText());
+        assertEquals("LOBBY", result.path("payload").path("status").asText());
+        assertEquals("WAITING_FOR_ROLL", result.path("payload").path("currentPhase").asText());
+    }
+
+    @Test
+    void handleAccusation_unexpectedException_returnsProcessingError() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        when(lobbyManager.getGame()).thenThrow(new RuntimeException("boom"));
+
+        ObjectNode result = gameServer.handleAccusation(accusationPayload("p1"), "sess");
+
+        assertEquals("ACCUSATION_ERROR", result.path("type").asText());
+        assertEquals("Error processing accusation: boom", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void handleSuggestion_unauthorized_returnsAuthError() {
+        when(eventListener.getPlayerIdForSession("badSession")).thenReturn("other");
+
+        ObjectNode result = gameServer.handleSuggestion(suggestionPayload("p1"), "badSession");
+
+        assertEquals(GameMessageType.SUGGESTION_ERROR.toString(), result.path("type").asText());
+        assertEquals("Unauthorized: you can only act on your own behalf",
+                result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void handleSuggestion_invalidEnum_returnsInvalidError() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        ObjectNode payload = suggestionPayload("p1");
+        payload.put("weapon", "INVALID");
+
+        ObjectNode result = gameServer.handleSuggestion(payload, "sess");
+
+        assertEquals(GameMessageType.SUGGESTION_ERROR.toString(), result.path("type").asText());
+        assertEquals("Invalid suspect, room or weapon", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void handleSuggestion_missingField_returnsMissingFieldError() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("suggesterID", "p1");
+        payload.put("suspect", "DR_RED");
+        payload.put("room", "KITCHEN");
+
+        ObjectNode result = gameServer.handleSuggestion(payload, "sess");
+
+        assertEquals(GameMessageType.SUGGESTION_ERROR.toString(), result.path("type").asText());
+        assertEquals("Missing suggestion payload field", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void handleSuggestion_gameNotRunning_returnsError() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getStatus()).thenReturn(GameStatus.LOBBY);
+
+        ObjectNode result = gameServer.handleSuggestion(suggestionPayload("p1"), "sess");
+
+        assertEquals(GameMessageType.SUGGESTION_ERROR.toString(), result.path("type").asText());
+        assertEquals("Game is not running", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void handleSuggestion_suggesterNotFound_returnsError() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
+        when(game.getPlayers()).thenReturn(List.of(new Player("p2")));
+
+        ObjectNode result = gameServer.handleSuggestion(suggestionPayload("p1"), "sess");
+
+        assertEquals(GameMessageType.SUGGESTION_ERROR.toString(), result.path("type").asText());
+        assertEquals("Suggester not found", result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void handleSuggestion_eliminatedSuggester_returnsError() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        Player p1 = new Player("p1");
+        p1.setEliminated(true);
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
+        when(game.getPlayers()).thenReturn(List.of(p1));
+
+        ObjectNode result = gameServer.handleSuggestion(suggestionPayload("p1"), "sess");
+
+        assertEquals(GameMessageType.SUGGESTION_ERROR.toString(), result.path("type").asText());
+        assertEquals("Eliminated players cannot make suggestions",
+                result.path("payload").path("reason").asText());
+    }
+
+    @Test
+    void handleSuggestion_validSuggestion_setsPendingSuggestionAndSchedulesResolution() {
+        when(eventListener.getPlayerIdForSession("sess")).thenReturn("p1");
+
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> future = mock(ScheduledFuture.class);
+
+        ReflectionTestUtils.setField(gameServer, "scheduler", scheduler);
+
+        doReturn(future)
+                .when(scheduler)
+                .schedule(any(Runnable.class), eq(5L), eq(TimeUnit.SECONDS));
+
+        Player p1 = new Player("p1");
+
+        Game game = mock(Game.class);
+        when(lobbyManager.getGame()).thenReturn(game);
+        when(game.getStatus()).thenReturn(GameStatus.RUNNING);
+        when(game.getPlayers()).thenReturn(List.of(p1));
+        when(game.getGameId()).thenReturn("game-1");
+        when(game.getTurnManager()).thenReturn(TurnManager.getINSTANCE());
+
+        ObjectNode result = gameServer.handleSuggestion(suggestionPayload("p1"), "sess");
+
+        assertEquals(GameMessageType.SUGGESTION_REQUEST.toString(), result.path("type").asText());
+        assertEquals("game-1", result.path("payload").path("gameID").asText());
+        assertEquals("p1", result.path("payload").path("suggesterID").asText());
+        assertEquals("DR_RED", result.path("payload").path("suspect").asText());
+        assertEquals("KITCHEN", result.path("payload").path("room").asText());
+        assertEquals("KNIFE", result.path("payload").path("weapon").asText());
+        assertEquals("WAITING_FOR_SUGGESTION_RESPONSE",
+                result.path("payload").path("currentPhase").asText());
+        assertEquals(5, result.path("payload").path("cheatWindowSeconds").asInt());
+
+        assertNotNull(ReflectionTestUtils.getField(gameServer, "pendingSuggestion"));
+        verify(scheduler).schedule(any(Runnable.class), eq(5L), eq(TimeUnit.SECONDS));
+    }
+
+    private ObjectNode accusationPayload(String accuserId) {
+        ObjectNode p = mapper.createObjectNode();
+        p.put("accuserID", accuserId);
+        p.put("suspect", "DR_RED");
+        p.put("room", "KITCHEN");
+        p.put("weapon", "KNIFE");
+        return p;
+    }
+
+    private ObjectNode suggestionPayload(String suggesterId) {
+        ObjectNode p = mapper.createObjectNode();
+        p.put("suggesterID", suggesterId);
+        p.put("suspect", "DR_RED");
+        p.put("room", "KITCHEN");
+        p.put("weapon", "KNIFE");
+        return p;
     }
 
 
