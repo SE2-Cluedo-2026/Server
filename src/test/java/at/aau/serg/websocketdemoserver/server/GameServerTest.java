@@ -805,7 +805,8 @@ class GameServerTest {
 
     @Test
     void cancelScheduledEndTurn_futureNull_doesNothing() {
-        ReflectionTestUtils.invokeMethod(gameServer, "cancelScheduledEndTurn", "game-1");
+        assertDoesNotThrow(() ->
+                ReflectionTestUtils.invokeMethod(gameServer, "cancelScheduledEndTurn", "game-1"));
     }
 
     @Test

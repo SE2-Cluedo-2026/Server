@@ -18,6 +18,10 @@ import org.slf4j.LoggerFactory;
 @Controller
 public class WebSocketBrokerController {
     private static final Logger logger = LoggerFactory.getLogger(WebSocketBrokerController.class);
+    private static final String REASON = "reason";
+    private static final String PAYLOAD = "payload";
+    private static final String LOBBY_ERROR = "LOBBY_ERROR";
+    private static final String GAME_ERROR = "GAME_ERROR";
     private final GameServer gameServer;
     private final WebSocketEventListener eventListener;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -32,8 +36,8 @@ public class WebSocketBrokerController {
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
         response.put("type", type);
-        responsePayload.put("reason", "Unauthorized: action not allowed for this session");
-        response.set("payload", responsePayload);
+        responsePayload.put(REASON, "Unauthorized: action not allowed for this session");
+        response.set(PAYLOAD, responsePayload);
         return response;
     }
 
@@ -67,16 +71,16 @@ public class WebSocketBrokerController {
             }
             ObjectNode err = mapper.createObjectNode();
             ObjectNode errPayload = mapper.createObjectNode();
-            err.put("type", "LOBBY_ERROR");
-            errPayload.put("reason", "Unknown lobby message type: " + message.getType());
-            err.set("payload", errPayload);
+            err.put("type", LOBBY_ERROR);
+            errPayload.put(REASON, "Unknown lobby message type: " + message.getType());
+            err.set(PAYLOAD, errPayload);
             return err;
         } catch(Exception e) {
             ObjectNode err = mapper.createObjectNode();
             ObjectNode errPayload = mapper.createObjectNode();
-            err.put("type", "LOBBY_ERROR");
-            errPayload.put("reason", "Unknown reason");
-            err.set("payload", errPayload);
+            err.put("type", LOBBY_ERROR);
+            errPayload.put(REASON, "Unknown reason");
+            err.set(PAYLOAD, errPayload);
             return err;
         }
     }
@@ -118,16 +122,16 @@ public class WebSocketBrokerController {
             }
                 ObjectNode err = mapper.createObjectNode();
                 ObjectNode errPayload = mapper.createObjectNode();
-                err.put("type", "GAME_ERROR");
-                errPayload.put("reason", "Unknown game message type: " + message.getType());
-                err.set("payload", errPayload);
+                err.put("type", GAME_ERROR);
+                errPayload.put(REASON, "Unknown game message type: " + message.getType());
+                err.set(PAYLOAD, errPayload);
                 return err;
         } catch(Exception e){
             ObjectNode err = mapper.createObjectNode();
             ObjectNode errPayload = mapper.createObjectNode();
-            err.put("type", "GAME_ERROR");
-            errPayload.put("reason", "Unknown reason");
-            err.set("payload", errPayload);
+            err.put("type", GAME_ERROR);
+            errPayload.put(REASON, "Unknown reason");
+            err.set(PAYLOAD, errPayload);
             return err;
         }
     }
@@ -138,9 +142,9 @@ public class WebSocketBrokerController {
         logger.error("[Lobby] Unhandled exception", ex);
         ObjectNode err = mapper.createObjectNode();
         ObjectNode errPayload = mapper.createObjectNode();
-        err.put("type", "LOBBY_ERROR");
-        errPayload.put("reason", "Server error: " + ex.getMessage());
-        err.set("payload", errPayload);
+        err.put("type", LOBBY_ERROR);
+        errPayload.put(REASON, "Server error: " + ex.getMessage());
+        err.set(PAYLOAD, errPayload);
         return err;
     }
 
@@ -150,9 +154,9 @@ public class WebSocketBrokerController {
         logger.error("[Game] Unhandled exception", ex);
         ObjectNode err = mapper.createObjectNode();
         ObjectNode errPayload = mapper.createObjectNode();
-        err.put("type", "GAME_ERROR");
-        errPayload.put("reason", "Server error: " + ex.getMessage());
-        err.set("payload", errPayload);
+        err.put("type", GAME_ERROR);
+        errPayload.put(REASON, "Server error: " + ex.getMessage());
+        err.set(PAYLOAD, errPayload);
         return err;
     }
 }

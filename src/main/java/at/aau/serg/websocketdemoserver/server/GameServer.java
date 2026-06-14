@@ -61,6 +61,11 @@ public class GameServer {
     private static final String WEAPON = "weapon";
     private static final String ACCUSATION_ERROR = "ACCUSATION_ERROR";
     private static final String TOPIC_GAME_RESPONSE = "/topic/game-response";
+    private static final String SUGGESTER_ID = "suggesterID";
+    private static final String MOVE_ERROR = "MOVE_ERROR";
+    private static final String CHEAT_ATTEMPT_ERROR = "CHEAT_ATTEMPT_ERROR";
+    private static final String CHEAT_PRESSED = "cheatPressed";
+    private static final String CHEAT_DETECTED = "cheatDetected";
 
     private final DatabaseService dbService;
     private final SimpMessagingTemplate messagingTemplate;
@@ -456,10 +461,10 @@ public class GameServer {
                 ObjectNode responsePayload = mapper.createObjectNode();
 
                 response.put("type", GameMessageType.SUGGESTION_RESULT.toString());
-                responsePayload.put("suggesterID", suggesterID);
-                responsePayload.put("suspect", pendingSuggestion.getSuspect().toString());
+                responsePayload.put(SUGGESTER_ID, suggesterID);
+                responsePayload.put(SUSPECT, pendingSuggestion.getSuspect().toString());
                 responsePayload.put("room", pendingSuggestion.getRoom().toString());
-                responsePayload.put("weapon", pendingSuggestion.getWeapon().toString());
+                responsePayload.put(WEAPON, pendingSuggestion.getWeapon().toString());
 
                 ArrayNode matchingCardsArray = mapper.createArrayNode();
                 if (responder != null) {
@@ -622,14 +627,14 @@ public class GameServer {
         try {
             String playerId = payload.get(PLAYER_ID).asText();
             if (!isAuthorized(sessionId, playerId)) {
-                return authError("MOVE_ERROR");
+                return authError(MOVE_ERROR);
             }
             String position = payload.get(POSITION).asText();
             Game game = lobbyManager.getGame();
 
             Player player = findPlayer(game, playerId);
             if (player == null) {
-                response.put("type", "MOVE_ERROR");
+                response.put("type", MOVE_ERROR);
                 responsePayload.put(REASON, PLAYER_NOT_FOUND);
                 response.set(PAYLOAD, responsePayload);
                 return response;
@@ -662,7 +667,7 @@ public class GameServer {
                 }
 
                 if (distance < 1 || distance > game.getTurnManager().getMovesRemaining()) {
-                    response.put("type", "MOVE_ERROR");
+                    response.put("type", MOVE_ERROR);
                     responsePayload.put(REASON, "Move exceeds remaining dice steps");
                     response.set(PAYLOAD, responsePayload);
                     return response;
@@ -676,7 +681,7 @@ public class GameServer {
                             && otherPlayer.getCurrentPosition().getX() == pos.getX()
                             && otherPlayer.getCurrentPosition().getY() == pos.getY()) {
 
-                        response.put("type", "MOVE_ERROR");
+                        response.put("type", MOVE_ERROR);
                         responsePayload.put(REASON, "Field is already occupied");
                         response.set(PAYLOAD, responsePayload);
                         return response;
@@ -712,7 +717,7 @@ public class GameServer {
             response.put("type", GameMessageType.MOVE.toString());
             response.set(PAYLOAD, responsePayload);
         } catch (Exception e) {
-            response.put("type", "MOVE_ERROR");
+            response.put("type", MOVE_ERROR);
             responsePayload.put(REASON, "Error processing move: " + e.getMessage());
             response.set(PAYLOAD, responsePayload);
         }
@@ -933,7 +938,7 @@ public class GameServer {
         ObjectNode responsePayload = mapper.createObjectNode();
 
         try {
-            String suggesterID = payload.get("suggesterID").asText();
+            String suggesterID = payload.get(SUGGESTER_ID).asText();
             if (!isAuthorized(sessionId, suggesterID)) {
                 return authError(GameMessageType.SUGGESTION_ERROR.toString());
             }
@@ -979,11 +984,11 @@ public class GameServer {
 
             response.put("type", GameMessageType.SUGGESTION_REQUEST.toString());
             responsePayload.put("gameID", game.getGameId());
-            responsePayload.put("suggesterID", suggesterID);
+            responsePayload.put(SUGGESTER_ID, suggesterID);
             responsePayload.put(SUSPECT, suspect.toString());
             responsePayload.put("room", room.toString());
             responsePayload.put(WEAPON, weapon.toString());
-            responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
+            responsePayload.put(CURRENT_PHASE, game.getTurnManager().getPhase().toString());
             responsePayload.put("cheatWindowSeconds", 5);
 
             scheduleSuggestionResolution(suggesterID, game.getGameId());
@@ -1051,19 +1056,19 @@ public class GameServer {
         try {
             String playerId = payload.get(PLAYER_ID).asText();
             if (!isAuthorized(sessionId, playerId)) {
-                return authError("CHEAT_ATTEMPT_ERROR");
+                return authError(CHEAT_ATTEMPT_ERROR);
             }
             Game game = lobbyManager.getGame();
 
             if (!game.isRunning()) {
-                response.put("type", "CHEAT_ATTEMPT_ERROR");
+                response.put("type", CHEAT_ATTEMPT_ERROR);
                 responsePayload.put(REASON, GAME_NOT_RUNNING);
                 response.set(PAYLOAD, responsePayload);
                 return response;
             }
 
             if (pendingSuggestion == null) {
-                response.put("type", "CHEAT_ATTEMPT_ERROR");
+                response.put("type", CHEAT_ATTEMPT_ERROR);
                 responsePayload.put(REASON, "No active suggestion to cheat on");
                 response.set(PAYLOAD, responsePayload);
                 return response;
@@ -1072,14 +1077,14 @@ public class GameServer {
             Player cheater = findPlayer(game, playerId);
 
             if (cheater == null) {
-                response.put("type", "CHEAT_ATTEMPT_ERROR");
+                response.put("type", CHEAT_ATTEMPT_ERROR);
                 responsePayload.put(REASON, PLAYER_NOT_FOUND);
                 response.set(PAYLOAD, responsePayload);
                 return response;
             }
 
             if (cheater.isEliminated()) {
-                response.put("type", "CHEAT_ATTEMPT_ERROR");
+                response.put("type", CHEAT_ATTEMPT_ERROR);
                 responsePayload.put(REASON, "Eliminated players cannot cheat");
                 response.set(PAYLOAD, responsePayload);
                 return response;
@@ -1087,7 +1092,7 @@ public class GameServer {
 
             if (pendingSuggestion.getSuggester() != null
                     && pendingSuggestion.getSuggester().getPlayerId().equals(playerId)) {
-                response.put("type", "CHEAT_ATTEMPT_ERROR");
+                response.put("type", CHEAT_ATTEMPT_ERROR);
                 responsePayload.put(REASON, "Suggester cannot cheat on their own suggestion");
                 response.set(PAYLOAD, responsePayload);
                 return response;
@@ -1116,7 +1121,7 @@ public class GameServer {
             responsePayload.set("matchingCards", matchingCardsArray);
 
         } catch (Exception e) {
-            response.put("type", "CHEAT_ATTEMPT_ERROR");
+            response.put("type", CHEAT_ATTEMPT_ERROR);
             responsePayload.put(REASON, "Error processing cheat attempt: " + e.getMessage());
         }
 
@@ -1129,11 +1134,11 @@ public class GameServer {
         ObjectNode responsePayload = mapper.createObjectNode();
 
         try {
-            String suggesterID = payload.get("suggesterID").asText();
+            String suggesterID = payload.get(SUGGESTER_ID).asText();
             if (!isAuthorized(sessionId, suggesterID)) {
-                return authError("CHEAT_ATTEMPT_ERROR");
+                return authError(CHEAT_ATTEMPT_ERROR);
             }
-            boolean cheatPressed = payload.has("cheatPressed") && payload.get("cheatPressed").asBoolean();
+            boolean cheatPressed = payload.has(CHEAT_PRESSED) && payload.get(CHEAT_PRESSED).asBoolean();
 
             Game game = lobbyManager.getGame();
             CheatManager cheatManager = game.getCheatManager();
@@ -1146,14 +1151,14 @@ public class GameServer {
                 }
             }
 
-            responsePayload.put("suggesterID", suggesterID);
+            responsePayload.put(SUGGESTER_ID, suggesterID);
 
             response.put("type", GameMessageType.CHEAT_RESULT.toString());
-            responsePayload.put("cheatPressed", cheatPressed);
+            responsePayload.put(CHEAT_PRESSED, cheatPressed);
 
             if (cheatPressed && !realCheaters.isEmpty()) {
                 response.put("type", GameMessageType.CHEAT_RESULT.toString());
-                responsePayload.put("cheatDetected", true);
+                responsePayload.put(CHEAT_DETECTED, true);
 
                 ArrayNode cheatersArray = mapper.createArrayNode();
                 for (Player cheater : realCheaters) {
@@ -1184,7 +1189,7 @@ public class GameServer {
                 responsePayload.set("cheaters", cheatersArray);
 
             } else if (cheatPressed && realCheaters.isEmpty()) {
-                responsePayload.put("cheatDetected", false);
+                responsePayload.put(CHEAT_DETECTED, false);
 
                 Player suggester = findPlayer(game, suggesterID);
                 if (suggester != null && suggester.getCards() != null && !suggester.getCards().isEmpty()) {
@@ -1206,12 +1211,12 @@ public class GameServer {
                     }
                 }
             } else {
-                responsePayload.put("cheatDetected", false);
+                responsePayload.put(CHEAT_DETECTED, false);
             }
             game.endTurn();
 
-            responsePayload.put("currentPlayerIndex", game.getTurnManager().getCurrentPlayerId());
-            responsePayload.put("currentPhase", game.getTurnManager().getPhase().toString());
+            responsePayload.put(CURRENT_PLAYER_INDEX, game.getTurnManager().getCurrentPlayerId());
+            responsePayload.put(CURRENT_PHASE, game.getTurnManager().getPhase().toString());
             responsePayload.put("targetPlayerId", suggesterID);
 
             cheatManager.clearCheaters();
