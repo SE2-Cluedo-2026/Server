@@ -2,7 +2,6 @@ package at.aau.serg.websocketdemoserver.server;
 
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
-import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,8 +18,6 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.node.ObjectNode;
 
-
-import java.util.List;
 import java.util.Map;
 
 import java.util.concurrent.ScheduledExecutorService;
