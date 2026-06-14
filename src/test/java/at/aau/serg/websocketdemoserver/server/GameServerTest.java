@@ -1326,6 +1326,9 @@ class GameServerTest {
     }
     // end tests  969 - 1012
 
+    // start tests 562-742
+
+
     // start tests 744-807
     @Test
     void takeHiddenWay_unauthorized_returnsError() {
