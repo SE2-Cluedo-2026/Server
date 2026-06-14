@@ -532,7 +532,7 @@ class GameServerTest {
         when(lobbyManager.getGame()).thenReturn(null);
         ReflectionTestUtils.setField(gameServer, "pendingSuggestion", mock(Suggestion.class));
 
-        ReflectionTestUtils.invokeMethod(gameServer, "scheduleSuggestionResolution", "p1", "game-1");
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleSuggestionResolution", "p1");
 
         runnableCaptor.getValue().run();
 
@@ -578,7 +578,7 @@ class GameServerTest {
                 .when(scheduler)
                 .schedule(runnableCaptor.capture(), eq(5L), eq(TimeUnit.SECONDS));
 
-        ReflectionTestUtils.invokeMethod(gameServer, "scheduleSuggestionResolution", "p1", "game-1");
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleSuggestionResolution", "p1");
 
         runnableCaptor.getValue().run();
 
@@ -780,7 +780,7 @@ class GameServerTest {
                 .when(scheduler)
                 .schedule(captor.capture(), eq(5L), eq(TimeUnit.SECONDS));
 
-        ReflectionTestUtils.invokeMethod(gameServer, "scheduleSuggestionResolution", "p1", "game-1");
+        ReflectionTestUtils.invokeMethod(gameServer, "scheduleSuggestionResolution", "p1");
 
         captor.getValue().run();
 
@@ -2055,7 +2055,7 @@ class GameServerTest {
         when(game.getCheatManager()).thenReturn(cm);
         when(cm.getCheaterIds()).thenReturn(Collections.emptyList());
 
-        when(game.getPlayers()).thenReturn(Collections.emptyList()); // findPlayer gibt null
+        when(game.getPlayers()).thenReturn(Collections.emptyList());
         when(game.getTurnManager()).thenReturn(TurnManager.getINSTANCE());
 
         ObjectNode result = gameServer.handleCheatButtonPressed(cheatButtonPayload("p1", true), "sess");
@@ -2228,14 +2228,12 @@ class GameServerTest {
     }
 
     @Test
-    void scheduleGameReset_whenGameIsNull_doesNothing() throws Exception {
+    void scheduleGameReset_whenGameIsNull_doesNothing() {
         when(lobbyManager.getGame()).thenReturn(null);
 
         ReflectionTestUtils.invokeMethod(gameServer, "scheduleGameReset", 0);
 
-        Thread.sleep(100);
-
-        verify(dbService, never()).updateGameStatus(anyString(), anyString());
+        verify(dbService, after(100).never()).updateGameStatus(anyString(), anyString());
         verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
     }
 

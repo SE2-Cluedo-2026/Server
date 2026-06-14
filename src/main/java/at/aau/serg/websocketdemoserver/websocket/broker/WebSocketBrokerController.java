@@ -32,7 +32,6 @@ public class WebSocketBrokerController {
     }
 
     private ObjectNode unauthorizedError(String type) {
-        tools.jackson.databind.ObjectMapper mapper = new tools.jackson.databind.ObjectMapper();
         ObjectNode response = mapper.createObjectNode();
         ObjectNode responsePayload = mapper.createObjectNode();
         response.put("type", type);

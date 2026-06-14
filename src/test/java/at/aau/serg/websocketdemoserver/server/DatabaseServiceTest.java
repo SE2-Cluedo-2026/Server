@@ -12,6 +12,8 @@ import at.aau.serg.websocketdemoserver.model.game.Player;
 import at.aau.serg.websocketdemoserver.model.game.TurnManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -592,37 +594,16 @@ class DatabaseServiceTest {
         assertThrows(DataAccessException.class, () -> databaseService.saveGame(game));
     }
 
-    @Test
-    void savePlayers_jdbcUpdateThrows_logsAndRethrows() {
+    @ParameterizedTest
+    @ValueSource(strings = {"savePlayers", "savePlayerCards", "saveSeenCardsForPlayers"})
+    void playerListMethod_jdbcUpdateThrows_logsAndRethrows(String methodName) {
         when(jdbc.update(anyString(), any(Object[].class)))
                 .thenThrow(new DataIntegrityViolationException("DB error"));
 
         List<Player> players = List.of(new Player("p1"));
 
         assertThrows(DataAccessException.class, () ->
-                ReflectionTestUtils.invokeMethod(databaseService, "savePlayers", players));
-    }
-
-    @Test
-    void savePlayerCards_jdbcUpdateThrows_logsAndRethrows() {
-        when(jdbc.update(anyString(), any(Object[].class)))
-                .thenThrow(new DataIntegrityViolationException("DB error"));
-
-        List<Player> players = List.of(new Player("p1"));
-
-        assertThrows(DataAccessException.class, () ->
-                ReflectionTestUtils.invokeMethod(databaseService, "savePlayerCards", players));
-    }
-
-    @Test
-    void saveSeenCardsForPlayers_jdbcUpdateThrows_logsAndRethrows() {
-        when(jdbc.update(anyString(), any(Object[].class)))
-                .thenThrow(new DataIntegrityViolationException("DB error"));
-
-        List<Player> players = List.of(new Player("p1"));
-
-        assertThrows(DataAccessException.class, () ->
-                ReflectionTestUtils.invokeMethod(databaseService, "saveSeenCardsForPlayers", players));
+                ReflectionTestUtils.invokeMethod(databaseService, methodName, players));
     }
 
     @Test
