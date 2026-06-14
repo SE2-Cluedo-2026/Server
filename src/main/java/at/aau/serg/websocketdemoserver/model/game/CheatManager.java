@@ -1,13 +1,38 @@
 package at.aau.serg.websocketdemoserver.model.game;
 
-public class CheatManager {
+import java.util.ArrayList;
+import java.util.List;
 
-    public boolean canCheat() {
-        // TODO
-        return false;
+public class CheatManager {
+    private final List<String> cheaterIds = new ArrayList<>();
+    private final List<String> successfulCheaterIds = new ArrayList<>();
+
+    public void registerCheatAttempt(String playerId) {
+        if (!cheaterIds.contains(playerId)) {
+            cheaterIds.add(playerId);
+        }
     }
 
-    public void resolveLiarCall() {
-        // TODO
+    public void registerSuccessfulCheat(String playerId) {
+        if (!successfulCheaterIds.contains(playerId)) {
+            successfulCheaterIds.add(playerId);
+        }
+    }
+
+    public List<String> getCheaterIds() {
+        return new ArrayList<>(cheaterIds);
+    }
+
+    public List<String> getSuccessfulCheaterIds() {
+        return new ArrayList<>(successfulCheaterIds);
+    }
+
+    public void clearCheaters() {
+        cheaterIds.clear();
+        successfulCheaterIds.clear();
+    }
+
+    public boolean hasCheated(String playerId) {
+        return cheaterIds.contains(playerId);
     }
 }

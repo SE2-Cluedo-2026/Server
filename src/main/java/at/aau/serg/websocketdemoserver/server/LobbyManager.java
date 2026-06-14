@@ -4,9 +4,7 @@ import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
 import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 public class LobbyManager {
     private final Game game = Game.getINSTANCE();
 
@@ -45,8 +43,6 @@ public class LobbyManager {
         return game.getPlayers();
     }
 
-    public void joinLobby() {
-    }
 
     public boolean setCharacterTypeAndStatusReady(String playerId, CharacterType characterType) {
         for (Player player : game.getPlayers()) {

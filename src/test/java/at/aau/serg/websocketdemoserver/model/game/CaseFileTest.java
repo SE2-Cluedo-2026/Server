@@ -13,8 +13,8 @@ import static org.junit.jupiter.api.Assertions.*;
 public class CaseFileTest {
 
     @Test
-    public void testConstructorCreatesCompleteCaseFile() {
-        SuspectCard suspect = new SuspectCard("1", "Suspect", CharacterType.DR_BLUE);
+    public void TestConstructorCreatesCompleteCaseFile() {
+        SuspectCard suspect = new SuspectCard("1", "Suspect", CharacterType.DR_RED);
         RoomCard room = new RoomCard("2", "Room", RoomType.KITCHEN);
         WeaponCard weapon = new WeaponCard("3", "Weapon", WeaponType.KNIFE);
 
@@ -24,10 +24,11 @@ public class CaseFileTest {
         assertEquals(room, caseFile.getRoomCard());
         assertEquals(weapon, caseFile.getWeaponCard());
         assertTrue(caseFile.isComplete());
+        assertTrue(caseFile.matches());
     }
 
     @Test
-    public void testCreateReplacesCards() {
+    public void TestCreateReplacesCards() {
         CaseFile caseFile = new CaseFile(null, null, null);
 
         SuspectCard suspect = new SuspectCard("1", "Suspect", CharacterType.DR_RED);
@@ -43,7 +44,7 @@ public class CaseFileTest {
     }
 
     @Test
-    public void testClearEmptiesCaseFile() {
+    public void TestClearRemovesAllCards() {
         CaseFile caseFile = new CaseFile(
                 new SuspectCard("1", "Suspect", CharacterType.DR_BLUE),
                 new RoomCard("2", "Room", RoomType.KITCHEN),
@@ -56,10 +57,11 @@ public class CaseFileTest {
         assertNull(caseFile.getRoomCard());
         assertNull(caseFile.getWeaponCard());
         assertFalse(caseFile.isComplete());
+        assertFalse(caseFile.matches());
     }
 
     @Test
-    public void testMatchesReturnsTrueForCorrectAccusation() {
+    public void TestMatchesReturnsTrueForCorrectAccusation() {
         CaseFile caseFile = new CaseFile(
                 new SuspectCard("1", "Suspect", CharacterType.DR_BLUE),
                 new RoomCard("2", "Room", RoomType.KITCHEN),
@@ -67,7 +69,7 @@ public class CaseFileTest {
         );
 
         Accusation accusation = new Accusation(
-                new Player("player1"),
+                null,
                 CharacterType.DR_BLUE,
                 RoomType.KITCHEN,
                 WeaponType.KNIFE
@@ -77,7 +79,7 @@ public class CaseFileTest {
     }
 
     @Test
-    public void testMatchesReturnsFalseForWrongAccusation() {
+    public void TestMatchesReturnsFalseForWrongAccusation() {
         CaseFile caseFile = new CaseFile(
                 new SuspectCard("1", "Suspect", CharacterType.DR_BLUE),
                 new RoomCard("2", "Room", RoomType.KITCHEN),
@@ -85,7 +87,7 @@ public class CaseFileTest {
         );
 
         Accusation accusation = new Accusation(
-                new Player("player1"),
+                null,
                 CharacterType.DR_RED,
                 RoomType.KITCHEN,
                 WeaponType.KNIFE
@@ -95,7 +97,7 @@ public class CaseFileTest {
     }
 
     @Test
-    public void testMatchesReturnsFalseForNullAccusation() {
+    public void TestMatchesReturnsFalseForNullAccusation() {
         CaseFile caseFile = new CaseFile(
                 new SuspectCard("1", "Suspect", CharacterType.DR_BLUE),
                 new RoomCard("2", "Room", RoomType.KITCHEN),
@@ -103,5 +105,24 @@ public class CaseFileTest {
         );
 
         assertFalse(caseFile.matches(null));
+    }
+
+    @Test
+    public void TestMatchesReturnsFalseWhenCaseFileIsIncomplete() {
+        CaseFile caseFile = new CaseFile(
+                null,
+                new RoomCard("2", "Room", RoomType.KITCHEN),
+                new WeaponCard("3", "Weapon", WeaponType.KNIFE)
+        );
+
+        Accusation accusation = new Accusation(
+                null,
+                CharacterType.DR_RED,
+                RoomType.KITCHEN,
+                WeaponType.KNIFE
+        );
+
+        assertFalse(caseFile.matches(accusation));
+        assertFalse(caseFile.isComplete());
     }
 }

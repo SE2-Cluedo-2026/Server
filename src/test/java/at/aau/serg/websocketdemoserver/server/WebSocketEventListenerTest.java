@@ -2,7 +2,6 @@ package at.aau.serg.websocketdemoserver.server;
 
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.enums.GameStatus;
-import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,8 +18,6 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.node.ObjectNode;
 
-
-import java.util.List;
 import java.util.Map;
 
 import java.util.concurrent.ScheduledExecutorService;
@@ -32,9 +29,6 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class WebSocketEventListenerTest {
-
-    @Mock
-    private DatabaseService dbService;
 
     @Mock
     private SimpMessagingTemplate messagingTemplate;
@@ -81,14 +75,16 @@ class WebSocketEventListenerTest {
     }
 
     @Test
-    void handleDisconnectIgnoresWhenGameNotRunning() {
+    void handleDisconnectRemovesPlayerFromLobbyWhenGameNotRunning() {
+        Player player1 = new Player("player1");
         listener.registerSession("sess1", "player1");
-        game.addPlayer(new Player("player1"));
+        game.addPlayer(player1);
 
         SessionDisconnectEvent event = createDisconnectEvent("sess1");
         listener.handleDisconnect(event);
 
-        verifyNoInteractions(messagingTemplate);
+        assertFalse(game.getPlayers().contains(player1));
+        verify(messagingTemplate).convertAndSend(eq("/topic/lobby-response"), any(ObjectNode.class));
     }
 
     @Test

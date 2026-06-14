@@ -4,6 +4,7 @@ import at.aau.serg.websocketdemoserver.model.board.Position;
 import at.aau.serg.websocketdemoserver.model.cards.Card;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import lombok.*;
+import java.util.ArrayList;
 
 import java.util.List;
 
@@ -33,6 +34,9 @@ public class Player {
     @Getter
     @Setter
     private Position currentPosition;
+    @Getter
+    @Setter
+    private List<Card> seenCards;
 
     public Player(String playerId) {
         this.playerId = playerId;
@@ -41,6 +45,7 @@ public class Player {
         this.eliminated = false;
         this.cheatUsed = false;
         this.accusationUsed = false;
+        this.seenCards = new ArrayList<>();
     }
     public void setCharacter(CharacterType character) {
         this.character = character;
@@ -50,12 +55,29 @@ public class Player {
     }
 
     public void useCheat() {
-        // TODO
         this.cheatUsed = true;
     }
 
     public void eliminate() {
-        // TODO
         this.eliminated = true;
+    }
+
+    public void addSeenCards(List<Card> cardsToAdd) {
+        if (cardsToAdd == null) {
+            return;
+        }
+
+        if (this.seenCards == null) {
+            this.seenCards = new ArrayList<>();
+        }
+
+        for (Card card : cardsToAdd) {
+            boolean alreadySeen = this.seenCards.stream()
+                    .anyMatch(seenCard -> seenCard.getCardId().equals(card.getCardId()));
+
+            if (!alreadySeen) {
+                this.seenCards.add(card);
+            }
+        }
     }
 }

@@ -12,7 +12,8 @@ public class Position {
     private int y;
     private RoomType room;
 
-    public Position() {}
+    public Position() {
+    }
 
     public void setBoardPosition(int x, int y) {
         this.positionType = PositionType.BOARD;

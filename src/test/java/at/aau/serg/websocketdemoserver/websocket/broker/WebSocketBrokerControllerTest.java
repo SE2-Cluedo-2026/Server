@@ -8,7 +8,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -46,12 +45,14 @@ public class WebSocketBrokerControllerTest {
 
     @Test
     public void testRouteLobbyMessage_LeaveLobby() {
-        JsonNode payload = mapper.createObjectNode();
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("playerId", "p1");
+
         ObjectNode expected = mapper.createObjectNode();
+        expected.put("playerKey", "testKey");
         when(gameServer.leaveLobby(payload)).thenReturn(expected);
 
         LobbyMessage message = mock(LobbyMessage.class);
-        expected.put("playerKey", "testKey");
         when(message.getType()).thenReturn(LobbyMessageType.LEAVE_LOBBY);
         when(message.getPayload()).thenReturn(payload);
 
@@ -73,7 +74,7 @@ public class WebSocketBrokerControllerTest {
         when(message.getType()).thenReturn(GameMessageType.ROLL_DICE);
         when(message.getPayload()).thenReturn(mapper.createObjectNode());
 
-        assertNull(controller.routeGameMessage(message));
+        assertNull(controller.routeGameMessage(message, "test-session-id"));
     }
 
     @Test
@@ -82,6 +83,198 @@ public class WebSocketBrokerControllerTest {
         when(message.getType()).thenReturn(GameMessageType.MOVE);
         when(message.getPayload()).thenReturn(mapper.createObjectNode());
 
-        assertNull(controller.routeGameMessage(message));
+        assertNull(controller.routeGameMessage(message, "test-session-id"));
+    }
+
+    @Test
+    public void testRouteLobbyMessage_UnknownType_ReturnsLobbyError() {
+        LobbyMessage message = mock(LobbyMessage.class);
+        when(message.getType()).thenReturn(LobbyMessageType.NEW_PLAYER_JOINED);
+        when(message.getPayload()).thenReturn(mapper.createObjectNode());
+
+        ObjectNode response = controller.routeLobbyMessage(message, "test-session-id");
+
+        assertEquals("LOBBY_ERROR", response.get("type").asText());
+        assertTrue(response.get("payload").get("reason").asText().contains("Unknown lobby message type"));
+    }
+
+    @Test
+    public void testRouteGameMessage_UnknownType_ReturnsGameError() {
+        GameMessage message = mock(GameMessage.class);
+        when(message.getType()).thenReturn(GameMessageType.GAME_STARTED);
+        when(message.getPayload()).thenReturn(mapper.createObjectNode());
+
+        ObjectNode response = controller.routeGameMessage(message, "test-session-id");
+
+        assertEquals("GAME_ERROR", response.get("type").asText());
+        assertTrue(response.get("payload").get("reason").asText().contains("Unknown game message type"));
+    }
+
+    @Test
+    public void testRouteLobbyMessage_StartGame() {
+        ObjectNode expected = mapper.createObjectNode();
+        when(gameServer.startGame()).thenReturn(expected);
+
+        LobbyMessage message = mock(LobbyMessage.class);
+        when(message.getType()).thenReturn(LobbyMessageType.START_GAME);
+        when(message.getPayload()).thenReturn(mapper.createObjectNode());
+
+        assertEquals(expected, controller.routeLobbyMessage(message, "test-session-id"));
+    }
+
+    @Test
+    public void testRouteLobbyMessage_LeaveLobby_Unauthorized_ReturnsLeaveError() {
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("playerId", "p1");
+
+        when(eventListener.getPlayerIdForSession("test-session-id")).thenReturn("p2");
+
+        LobbyMessage message = mock(LobbyMessage.class);
+        when(message.getType()).thenReturn(LobbyMessageType.LEAVE_LOBBY);
+        when(message.getPayload()).thenReturn(payload);
+
+        ObjectNode response = controller.routeLobbyMessage(message, "test-session-id");
+
+        assertEquals("LEAVE_ERROR", response.get("type").asText());
+        assertEquals("Unauthorized: action not allowed for this session",
+                response.get("payload").get("reason").asText());
+    }
+
+    @Test
+    public void testRouteLobbyMessage_Exception_ReturnsLobbyError() {
+        ObjectNode payload = mapper.createObjectNode();
+        payload.put("playerKey", "testKey");
+
+        when(gameServer.joinLobby(payload)).thenThrow(new RuntimeException("boom"));
+
+        LobbyMessage message = mock(LobbyMessage.class);
+        when(message.getType()).thenReturn(LobbyMessageType.JOIN_LOBBY);
+        when(message.getPayload()).thenReturn(payload);
+
+        ObjectNode response = controller.routeLobbyMessage(message, "test-session-id");
+
+        assertEquals("LOBBY_ERROR", response.get("type").asText());
+        assertEquals("Unknown reason", response.get("payload").get("reason").asText());
+    }
+
+    @Test
+    public void testRouteGameMessage_EndTurn() {
+        ObjectNode expected = mapper.createObjectNode();
+        when(gameServer.endTurn()).thenReturn(expected);
+
+        GameMessage message = mock(GameMessage.class);
+        when(message.getType()).thenReturn(GameMessageType.END_TURN);
+        when(message.getPayload()).thenReturn(mapper.createObjectNode());
+
+        assertEquals(expected, controller.routeGameMessage(message, "test-session-id"));
+    }
+
+    @Test
+    public void testRouteGameMessage_EnterRoom() {
+        ObjectNode payload = mapper.createObjectNode();
+        ObjectNode expected = mapper.createObjectNode();
+        when(gameServer.enterRoom(payload, "test-session-id")).thenReturn(expected);
+
+        GameMessage message = mock(GameMessage.class);
+        when(message.getType()).thenReturn(GameMessageType.ENTER_ROOM);
+        when(message.getPayload()).thenReturn(payload);
+
+        assertEquals(expected, controller.routeGameMessage(message, "test-session-id"));
+    }
+
+    @Test
+    public void testRouteGameMessage_TakeHiddenWay() {
+        ObjectNode payload = mapper.createObjectNode();
+        ObjectNode expected = mapper.createObjectNode();
+        when(gameServer.takeHiddenWay(payload, "test-session-id")).thenReturn(expected);
+
+        GameMessage message = mock(GameMessage.class);
+        when(message.getType()).thenReturn(GameMessageType.TAKE_HIDDEN_WAY);
+        when(message.getPayload()).thenReturn(payload);
+
+        assertEquals(expected, controller.routeGameMessage(message, "test-session-id"));
+    }
+
+    @Test
+    public void testRouteGameMessage_MakeAccusation() {
+        ObjectNode payload = mapper.createObjectNode();
+        ObjectNode expected = mapper.createObjectNode();
+        when(gameServer.handleAccusation(payload, "test-session-id")).thenReturn(expected);
+
+        GameMessage message = mock(GameMessage.class);
+        when(message.getType()).thenReturn(GameMessageType.MAKE_ACCUSATION);
+        when(message.getPayload()).thenReturn(payload);
+
+        assertEquals(expected, controller.routeGameMessage(message, "test-session-id"));
+    }
+
+    @Test
+    public void testRouteGameMessage_MakeSuggestion() {
+        ObjectNode payload = mapper.createObjectNode();
+        ObjectNode expected = mapper.createObjectNode();
+        when(gameServer.handleSuggestion(payload, "test-session-id")).thenReturn(expected);
+
+        GameMessage message = mock(GameMessage.class);
+        when(message.getType()).thenReturn(GameMessageType.MAKE_SUGGESTION);
+        when(message.getPayload()).thenReturn(payload);
+
+        assertEquals(expected, controller.routeGameMessage(message, "test-session-id"));
+    }
+
+    @Test
+    public void testRouteGameMessage_CheatAttempt() {
+        ObjectNode payload = mapper.createObjectNode();
+        ObjectNode expected = mapper.createObjectNode();
+        when(gameServer.handleCheatAttempt(payload, "test-session-id")).thenReturn(expected);
+
+        GameMessage message = mock(GameMessage.class);
+        when(message.getType()).thenReturn(GameMessageType.CHEAT_ATTEMPT);
+        when(message.getPayload()).thenReturn(payload);
+
+        assertEquals(expected, controller.routeGameMessage(message, "test-session-id"));
+    }
+
+    @Test
+    public void testRouteGameMessage_CheatButtonPressed() {
+        ObjectNode payload = mapper.createObjectNode();
+        ObjectNode expected = mapper.createObjectNode();
+        when(gameServer.handleCheatButtonPressed(payload, "test-session-id")).thenReturn(expected);
+
+        GameMessage message = mock(GameMessage.class);
+        when(message.getType()).thenReturn(GameMessageType.CHEAT_BUTTON_PRESSED);
+        when(message.getPayload()).thenReturn(payload);
+
+        assertEquals(expected, controller.routeGameMessage(message, "test-session-id"));
+    }
+
+    @Test
+    public void testRouteGameMessage_Exception_ReturnsGameError() {
+        ObjectNode payload = mapper.createObjectNode();
+        when(gameServer.rollDice(payload, "test-session-id")).thenThrow(new RuntimeException("boom"));
+
+        GameMessage message = mock(GameMessage.class);
+        when(message.getType()).thenReturn(GameMessageType.ROLL_DICE);
+        when(message.getPayload()).thenReturn(payload);
+
+        ObjectNode response = controller.routeGameMessage(message, "test-session-id");
+
+        assertEquals("GAME_ERROR", response.get("type").asText());
+        assertEquals("Unknown reason", response.get("payload").get("reason").asText());
+    }
+
+    @Test
+    public void testHandleLobbyException_ReturnsTypedErrorResponse() {
+        ObjectNode response = controller.handleLobbyException(new RuntimeException("error"));
+
+        assertEquals("LOBBY_ERROR", response.get("type").asText());
+        assertEquals("Server error: error", response.get("payload").get("reason").asText());
+    }
+
+    @Test
+    public void testHandleGameException_ReturnsTypedErrorResponse() {
+        ObjectNode response = controller.handleGameException(new RuntimeException("error"));
+
+        assertEquals("GAME_ERROR", response.get("type").asText());
+        assertEquals("Server error: error", response.get("payload").get("reason").asText());
     }
 }

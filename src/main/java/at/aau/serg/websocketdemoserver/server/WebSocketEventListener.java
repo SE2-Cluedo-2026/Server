@@ -4,7 +4,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
@@ -21,13 +20,12 @@ import java.util.concurrent.*;
 public class WebSocketEventListener {
 
     private static final Logger logger = LoggerFactory.getLogger(WebSocketEventListener.class);
+    private static final String PAYLOAD_KEY = "payload";
+    private static final String TOPIC_GAME_RESPONSE = "/topic/game-response";
 
-    private final DatabaseService dbService;
     private final SimpMessagingTemplate messagingTemplate;
 
-    @Autowired
-    public WebSocketEventListener(DatabaseService dbService, SimpMessagingTemplate messagingTemplate) {
-        this.dbService = dbService;
+    public WebSocketEventListener(SimpMessagingTemplate messagingTemplate) {
         this.messagingTemplate = messagingTemplate;
     }
 
@@ -72,7 +70,23 @@ public class WebSocketEventListener {
 
         Game game = Game.getINSTANCE();
 
-        if (game.getStatus() != GameStatus.RUNNING) return;
+        if (game.getStatus() != GameStatus.RUNNING) {
+            if (playerId != null) {
+                boolean removed = game.leaveLobby(playerId);
+                playerToCurrentSession.remove(playerId);
+                logger.info("[Disconnect] Lobby player {} removed on disconnect", playerId);
+                if (removed) {
+                    ObjectNode leaveMsg = mapper.createObjectNode();
+                    ObjectNode leavePayload = mapper.createObjectNode();
+                    leaveMsg.put("type", "PLAYER_REMOVED");
+                    leavePayload.put("playerId", playerId);
+                    leaveMsg.set(PAYLOAD_KEY, leavePayload);
+                    messagingTemplate.convertAndSend("/topic/lobby-response", leaveMsg);
+                    logger.info("[Disconnect] Broadcast PLAYER_REMOVED for {}", playerId);
+                }
+            }
+            return;
+        }
 
         for (Player p : game.getPlayers()) {
             if (p.getPlayerId().equals(playerId)) {
@@ -86,10 +100,10 @@ public class WebSocketEventListener {
         pauseMsg.put("type", "GAME_PAUSED");
         pausePayload.put("disconnectedPlayerId", playerId);
         pausePayload.put("countdown", 30);
-        pauseMsg.set("payload", pausePayload);
+        pauseMsg.set(PAYLOAD_KEY, pausePayload);
 
         messagingTemplate.convertAndSend(
-                "/topic/game-response", pauseMsg);
+                TOPIC_GAME_RESPONSE, pauseMsg);
 
         logger.info("Timer Started");
         ScheduledFuture<?> timer = scheduler.schedule(() -> processDisconnectTimeout(playerId, game), 30, TimeUnit.SECONDS);
@@ -97,6 +111,12 @@ public class WebSocketEventListener {
     }
 
     private void processDisconnectTimeout(String playerId, Game game) {
+        if (game.getStatus() != GameStatus.RUNNING) {
+            game.leaveLobby(playerId);
+            playerToCurrentSession.remove(playerId);
+            logger.info("[Disconnect] Game no longer running, skipping timeout for {}", playerId);
+            return;
+        }
         Player missing = null;
         for (Player p : game.getPlayers()) {
             if (p.getPlayerId().equals(playerId)) {
@@ -132,10 +152,10 @@ public class WebSocketEventListener {
             }
             abortPayload.set("existingPlayers", existingPlayers);
 
-            abortMsg.set("payload", abortPayload);
+            abortMsg.set(PAYLOAD_KEY, abortPayload);
 
             messagingTemplate.convertAndSend(
-                    "/topic/game-response", abortMsg);
+                    TOPIC_GAME_RESPONSE, abortMsg);
             logger.info("[DISCONNECT] DISCONNECT_SUCCESSFUL_AFTER_LEAVING");
             logger.info("Timer Stopped");
         }
@@ -157,14 +177,21 @@ public class WebSocketEventListener {
             timer.cancel(false);
         }
 
+        boolean waitingForPlayer = Game.getINSTANCE().getPlayers().stream().anyMatch(p -> !p.isActive());
+
         ObjectNode continueMsg = mapper.createObjectNode();
         ObjectNode continuePayload = mapper.createObjectNode();
         continueMsg.put("type", "CONTINUE_GAME");
         continuePayload.put("rejoinedPlayerId", playerId);
-        continueMsg.set("payload", continuePayload);
+        continuePayload.put("waitingForPlayer", waitingForPlayer);
+        continueMsg.set(PAYLOAD_KEY, continuePayload);
 
         messagingTemplate.convertAndSend(
-                "/topic/game-response", continueMsg);
+                TOPIC_GAME_RESPONSE, continueMsg);
+    }
+
+    public String getPlayerIdForSession(String sessionId) {
+        return sessionToPlayer.get(sessionId);
     }
 
     public void removePlayer(String playerId) {

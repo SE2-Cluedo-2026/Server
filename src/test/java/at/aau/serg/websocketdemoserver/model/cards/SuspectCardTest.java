@@ -1,7 +1,6 @@
 package at.aau.serg.websocketdemoserver.model.cards;
 
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
-import at.aau.serg.websocketdemoserver.model.enums.RoomType;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 

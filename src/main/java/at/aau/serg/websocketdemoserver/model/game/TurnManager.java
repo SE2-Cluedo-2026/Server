@@ -96,6 +96,10 @@ public class TurnManager {
         this.phase = TurnPhase.IN_ROOM;
     }
 
+    public void setPhaseWaitingForSuggestionResponse() {
+        this.phase = TurnPhase.WAITING_FOR_SUGGESTION_RESPONSE;
+    }
+
     public TurnPhase getPhase() {
         return phase;
     }

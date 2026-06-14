@@ -3,7 +3,6 @@ package at.aau.serg.websocketdemoserver.server;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -16,34 +15,38 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.stream.Collectors;
 
 @Service
 public class ServerStartupService implements CommandLineRunner {
+    private static final Logger logger = LoggerFactory.getLogger(ServerStartupService.class);
 
-    @Autowired
-    private DatabaseService dbService;
-
-    @Autowired
-    private SimpMessagingTemplate messagingTemplate;
-
+    private final DatabaseService dbService;
+    private final SimpMessagingTemplate messagingTemplate;
     private final ObjectMapper mapper = new ObjectMapper();
+
+    public ServerStartupService(DatabaseService dbService, SimpMessagingTemplate messagingTemplate) {
+        this.dbService = dbService;
+        this.messagingTemplate = messagingTemplate;
+    }
 
     @Override
     public void run(String... args) {
         try {
             Thread.sleep(3000);
-        } catch (InterruptedException ignored) {}
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
 
         try {
             String status = dbService.loadGameStatus();
 
             if ("RUNNING".equals(status)) {
-                System.out.println("[ServerStartup] RUNNING game found in DB – restoring state...");
+                logger.info("[ServerStartup] RUNNING game found in DB – restoring state...");
                 dbService.loadFullGame();
-                System.out.println("[ServerStartup] Game state restored. Starting 60s rejoin timer...");
+                logger.info("[ServerStartup] Game state restored. Starting 60s rejoin timer...");
 
                 ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
                 scheduler.schedule(() -> {
@@ -55,8 +58,8 @@ public class ServerStartupService implements CommandLineRunner {
                                 .collect(Collectors.toSet());
 
                         if (!missingIds.isEmpty()) {
-                            System.out.println("[ServerStartup] Rejoin timer expired – missing players: " + missingIds);
-                            System.out.println("[ServerStartup] Aborting game.");
+                            logger.info("[ServerStartup] Rejoin timer expired – missing players: {}", missingIds);
+                            logger.info("[ServerStartup] Aborting game.");
 
                             List<Player> disconnected = game.getPlayers().stream()
                                     .filter(p -> !p.isActive())
@@ -102,20 +105,19 @@ public class ServerStartupService implements CommandLineRunner {
                                     "/topic/game-response", abortMsg);
 
                         } else {
-                            System.out.println("[ServerStartup] All players reconnected – continuing game.");
+                            logger.info("[ServerStartup] All players reconnected – continuing game.");
                         }
                     }
                     scheduler.shutdown();
                 }, 60, TimeUnit.SECONDS);
 
             } else {
-                System.out.println("[ServerStartup] No running game found (status=" + status + ") – saving initial state.");
+                logger.info("[ServerStartup] No running game found (status={}) – saving initial state.", status);
                 dbService.saveGame(Game.getINSTANCE());
             }
 
         } catch (Exception e) {
-            System.err.println("[ServerStartup] Error during startup sync: " + e.getMessage());
-            Logger.getAnonymousLogger().log(Level.WARNING, "Error scheduling game reset", e);
+            logger.error("[ServerStartup] Error during startup sync: {}", e.getMessage(), e);
         }
     }
 }
