@@ -31,6 +31,11 @@ public class DatabaseService {
     this.jdbc = jdbc;
   }
 
+  private DataAccessException logAndWrap(String message, DataAccessException e) {
+    logger.error(message, e);
+    return new DataAccessException(message, e) {};
+  }
+
   public void saveGame(Game game) {
     try {
       saveGameState(game);
@@ -43,8 +48,7 @@ public class DatabaseService {
         saveCaseFile(game.getCaseFile());
       }
     } catch (DataAccessException e) {
-        logger.error("[DB] saveGame failed", e);
-        throw e;
+        throw logAndWrap("[DB] saveGame failed", e);
     }
 
   }
@@ -56,8 +60,7 @@ public class DatabaseService {
         saveSeenCards(p.getPlayerId(), p.getSeenCards());
       }
     }catch (DataAccessException e) {
-      logger.error("[DB] saveSeenCardsForPlayers failed", e);
-      throw e;
+      throw logAndWrap("[DB] saveSeenCardsForPlayers failed", e);
     }
   }
 
@@ -70,8 +73,7 @@ public class DatabaseService {
               game.getStatus().toString(), game.getCurrentPhase().toString()
       );
     } catch (DataAccessException e) {
-      logger.error("[DB] saveGameState failed", e);
-      throw e;
+      throw logAndWrap("[DB] saveGameState failed", e);
     }
 
   }
@@ -85,8 +87,7 @@ public class DatabaseService {
               tm.getCurrentPlayerId(), tm.getDiceValue(), tm.getPhase().toString()
       );
     } catch (DataAccessException e) {
-      logger.error("[DB] saveTurnManager failed", e);
-      throw e;
+      throw logAndWrap("[DB] saveTurnManager failed", e);
     }
 
   }
@@ -107,8 +108,7 @@ public class DatabaseService {
               cf.getWeaponCard().getCardId(), cf.getWeaponCard().getName()
       );
     }  catch (DataAccessException e) {
-      logger.error("[DB] saveCaseFile failed", e);
-      throw e;
+      throw logAndWrap("[DB] saveCaseFile failed", e);
     }
   }
 
@@ -142,8 +142,7 @@ public class DatabaseService {
         );
       }
     } catch (DataAccessException e) {
-      logger.error("[DB] savePlayers failed", e);
-      throw e;
+      throw logAndWrap("[DB] savePlayers failed", e);
     }
 
   }
@@ -169,8 +168,7 @@ public class DatabaseService {
         }
       }
     } catch (DataAccessException e) {
-      logger.error("[DB] savePlayerCards failed", e);
-      throw e;
+      throw logAndWrap("[DB] savePlayerCards failed", e);
     }
 
   }
@@ -199,8 +197,7 @@ public class DatabaseService {
               posType, posX, posY, posRoom, playerId
       );
     } catch (DataAccessException e) {
-      logger.error("[DB] updatePlayerPosition failed", e);
-      throw e;
+      throw logAndWrap("[DB] updatePlayerPosition failed", e);
     }
 
   }
@@ -214,8 +211,7 @@ public class DatabaseService {
               currentPlayerIndex, diceValue, phase
       );
     } catch (DataAccessException e) {
-      logger.error("[DB] updateCurrentPlayer failed", e);
-      throw e;
+      throw logAndWrap("[DB] updateCurrentPlayer failed", e);
     }
 
   }
@@ -227,8 +223,7 @@ public class DatabaseService {
               status, currentPhase, GAME_ID
       );
     } catch (DataAccessException e) {
-      logger.error("[DB] updateGameStatus failed", e);
-      throw e;
+      throw logAndWrap("[DB] updateGameStatus failed", e);
     }
 
   }
@@ -240,8 +235,7 @@ public class DatabaseService {
               eliminated, cheatUsed, accusationUsed, playerId
       );
     } catch (DataAccessException e) {
-      logger.error("[DB] updatePlayerFlags failed", e);
-      throw e;
+      throw logAndWrap("[DB] updatePlayerFlags failed", e);
     }
 
   }
@@ -257,8 +251,7 @@ public class DatabaseService {
         );
       }
     } catch (DataAccessException e) {
-      logger.error("[DB] updatePlayerCards failed", e);
-      throw e;
+      throw logAndWrap("[DB] updatePlayerCards failed", e);
     }
 
 
@@ -284,8 +277,7 @@ public class DatabaseService {
         );
       }
     } catch (DataAccessException e) {
-      logger.error("[DB] saveSeenCards failed", e);
-      throw e;
+      throw logAndWrap("[DB] saveSeenCards failed", e);
     }
 
   }
@@ -296,8 +288,7 @@ public class DatabaseService {
       jdbc.update("DELETE FROM seen_cards WHERE player_id = ?", playerId);
       jdbc.update("DELETE FROM player WHERE player_id = ?", playerId);
     } catch (DataAccessException e) {
-      logger.error("[DB] removePlayer failed", e);
-      throw e;
+      throw logAndWrap("[DB] removePlayer failed", e);
     }
 
   }

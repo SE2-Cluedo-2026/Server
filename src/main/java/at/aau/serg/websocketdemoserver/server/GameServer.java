@@ -445,7 +445,7 @@ public class GameServer {
         scheduledEndTurns.put(gameId, future);
     }
 
-    private void scheduleSuggestionResolution(String suggesterID, String gameId) {
+    private void scheduleSuggestionResolution(String suggesterID) {
         scheduler.schedule(() -> {
             try {
                 Game game = lobbyManager.getGame();
@@ -991,7 +991,7 @@ public class GameServer {
             responsePayload.put(CURRENT_PHASE, game.getTurnManager().getPhase().toString());
             responsePayload.put("cheatWindowSeconds", 5);
 
-            scheduleSuggestionResolution(suggesterID, game.getGameId());
+            scheduleSuggestionResolution(suggesterID);
 
         } catch (IllegalArgumentException e) {
             response.put("type", GameMessageType.SUGGESTION_ERROR.toString());
