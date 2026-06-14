@@ -45,9 +45,6 @@ public class LobbyManager {
         return game.getPlayers();
     }
 
-    public void joinLobby() {
-        // Join logic is handled by addPlayer()
-    }
 
     public boolean setCharacterTypeAndStatusReady(String playerId, CharacterType characterType) {
         for (Player player : game.getPlayers()) {
