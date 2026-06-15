@@ -4,6 +4,7 @@ import at.aau.serg.websocketdemoserver.messaging.dtos.LobbyMessageType;
 import at.aau.serg.websocketdemoserver.messaging.dtos.GameMessageType;
 import at.aau.serg.websocketdemoserver.model.enums.CharacterType;
 import at.aau.serg.websocketdemoserver.model.enums.TurnPhase;
+import at.aau.serg.websocketdemoserver.model.game.CaseFile;
 import at.aau.serg.websocketdemoserver.model.game.Game;
 import at.aau.serg.websocketdemoserver.model.game.Player;
 import at.aau.serg.websocketdemoserver.model.game.Accusation;
@@ -33,6 +34,7 @@ import at.aau.serg.websocketdemoserver.model.game.CheatManager;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1143,6 +1145,11 @@ public class GameServer {
             Game game = lobbyManager.getGame();
             CheatManager cheatManager = game.getCheatManager();
 
+            CaseFile caseFile = game.getCaseFile();
+            List<Card> caseFileCards = (caseFile != null && caseFile.isComplete())
+                    ? List.of(caseFile.getSuspectCard(), caseFile.getRoomCard(), caseFile.getWeaponCard())
+                    : List.of();
+
             List<Player> realCheaters = new ArrayList<>();
             for (String cheaterId : cheatManager.getCheaterIds()) {
                 if (!cheaterId.equals(suggesterID)) {
@@ -1168,20 +1175,32 @@ public class GameServer {
 
                     if (cheater.getCards() != null && !cheater.getCards().isEmpty()) {
                         Player suggesterPlayer = findPlayer(game, suggesterID);
-                        List<Card> unseenCards = cheater.getCards().stream().filter(c -> suggesterPlayer == null || !suggesterPlayer.getSeenCards().contains(c)).collect(java.util.stream.Collectors.toList());
-                        List<Card> pool = unseenCards.isEmpty() ? cheater.getCards() : unseenCards;
-                        int randomIndex = (int) (Math.random() * pool.size());
-                        Card randomCard = pool.get(randomIndex);
 
-                        ObjectNode cardNode = mapper.createObjectNode();
-                        cardNode.put(CARD_ID, randomCard.getCardId());
-                        cardNode.put("name", randomCard.getName());
-                        cardNode.put("type", randomCard.getClass().getSimpleName());
-                        cheaterCards.add(cardNode);
+                        List<Card> safeCards = cheater.getCards().stream()
+                                .filter(c -> !caseFileCards.contains(c))
+                                .collect(Collectors.toList());
 
-                        List<Card> singleCard = new ArrayList<>();
-                        singleCard.add(randomCard);
-                        rememberSeenCards(game, suggesterID, singleCard);
+                        List<Card> unseenCards = safeCards.stream()
+                                .filter(c -> suggesterPlayer == null || !suggesterPlayer.getSeenCards().contains(c))
+                                .collect(Collectors.toList());
+                        List<Card> pool = unseenCards.isEmpty() ? safeCards : unseenCards;
+
+                        if (!pool.isEmpty()) {
+                            int randomIndex = (int) (Math.random() * pool.size());
+                            Card randomCard = pool.get(randomIndex);
+
+                            ObjectNode cardNode = mapper.createObjectNode();
+                            cardNode.put(CARD_ID, randomCard.getCardId());
+                            cardNode.put("name", randomCard.getName());
+                            cardNode.put("type", randomCard.getClass().getSimpleName());
+                            cheaterCards.add(cardNode);
+
+                            List<Card> singleCard = new ArrayList<>();
+                            singleCard.add(randomCard);
+                            rememberSeenCards(game, suggesterID, singleCard);
+                        } else {
+                            logger.warn("Cheat card pool for player {} was empty after excluding case file cards", cheater.getPlayerId());
+                        }
                     }
                     cheaterNode.set("cards", cheaterCards);
                     cheatersArray.add(cheaterNode);
@@ -1193,21 +1212,30 @@ public class GameServer {
 
                 Player suggester = findPlayer(game, suggesterID);
                 if (suggester != null && suggester.getCards() != null && !suggester.getCards().isEmpty()) {
-                    int randomIndex = (int) (Math.random() * suggester.getCards().size());
-                    Card randomCard = suggester.getCards().get(randomIndex);
+                    // Lösungskarten (CaseFile) dürfen niemals über den Cheat-Mechanismus geleakt werden.
+                    List<Card> safeCards = suggester.getCards().stream()
+                            .filter(c -> !caseFileCards.contains(c))
+                            .collect(Collectors.toList());
 
-                    ObjectNode cardNode = mapper.createObjectNode();
-                    cardNode.put(CARD_ID, randomCard.getCardId());
-                    cardNode.put("name", randomCard.getName());
-                    cardNode.put("type", randomCard.getClass().getSimpleName());
-                    responsePayload.set("revealedCard", cardNode);
+                    if (!safeCards.isEmpty()) {
+                        int randomIndex = (int) (Math.random() * safeCards.size());
+                        Card randomCard = safeCards.get(randomIndex);
 
-                    List<Card> singleCard = new ArrayList<>();
-                    singleCard.add(randomCard);
-                    for (Player p : game.getPlayers()) {
-                        if (!p.getPlayerId().equals(suggesterID) && !p.isEliminated()) {
-                            rememberSeenCards(game, p.getPlayerId(), singleCard);
+                        ObjectNode cardNode = mapper.createObjectNode();
+                        cardNode.put(CARD_ID, randomCard.getCardId());
+                        cardNode.put("name", randomCard.getName());
+                        cardNode.put("type", randomCard.getClass().getSimpleName());
+                        responsePayload.set("revealedCard", cardNode);
+
+                        List<Card> singleCard = new ArrayList<>();
+                        singleCard.add(randomCard);
+                        for (Player p : game.getPlayers()) {
+                            if (!p.getPlayerId().equals(suggesterID) && !p.isEliminated()) {
+                                rememberSeenCards(game, p.getPlayerId(), singleCard);
+                            }
                         }
+                    } else {
+                        logger.warn("Reveal card pool for suggester {} was empty after excluding case file cards", suggesterID);
                     }
                 }
             } else {
