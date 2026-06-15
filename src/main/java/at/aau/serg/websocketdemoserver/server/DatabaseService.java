@@ -426,6 +426,19 @@ public class DatabaseService {
     }
 
     game.restoreState(status, currentPhase, players, caseFile);
+
+    if (caseFile != null && caseFile.isComplete()) {
+      List<Card> caseFileCards = List.of(caseFile.getSuspectCard(), caseFile.getRoomCard(), caseFile.getWeaponCard());
+      boolean inconsistent = players.stream().anyMatch(p ->
+              p.getCards() != null && p.getCards().stream().anyMatch(caseFileCards::contains));
+
+      if (inconsistent) {
+        logger.error("[DB] Inconsistent restore detected: a player's hand contains a CaseFile " +
+                "(solution) card. Aborting restored game to prevent leaking the solution.");
+        game.abort();
+        updateGameStatus(game.getStatus().toString(), game.getCurrentPhase().toString());
+      }
+    }
   }
 
   private Card createCardFromType(String cardId, String cardName, String cardType) {
