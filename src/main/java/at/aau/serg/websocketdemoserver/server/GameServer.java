@@ -78,6 +78,15 @@ public class GameServer {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final Map<String, ScheduledFuture<?>> scheduledEndTurns = new ConcurrentHashMap<>();
 
+    private static final Map<RoomType, int[]> ROOM_DOOR_POSITIONS = Map.of(
+            RoomType.KITCHEN,     new int[]{0,  0},
+            RoomType.BALLROOM,    new int[]{12, 0},
+            RoomType.LOUNGE,      new int[]{0,  4},
+            RoomType.LIBRARY,     new int[]{12, 4},
+            RoomType.STUDY,       new int[]{0,  8},
+            RoomType.BILLIARDROOM,new int[]{12, 8}
+    );
+
     private Suggestion pendingSuggestion = null;
     private Suggestion pendingSuggestionSnapshot = null;
 
@@ -602,6 +611,20 @@ public class GameServer {
             }
 
             int value = game.getTurnManager().rollDice();
+
+            // Spieler aus Raum auf Door Field setzen
+            Position currentPos = currentPlayer.getCurrentPosition();
+            if (currentPos != null && currentPos.getPositionType() == at.aau.serg.websocketdemoserver.model.enums.PositionType.ROOM) {
+                int[] door = ROOM_DOOR_POSITIONS.get(currentPos.getRoom());
+                if (door != null) {
+                    Position doorPos = new Position();
+                    doorPos.setBoardPosition(door[0], door[1]);
+                    currentPlayer.setCurrentPosition(doorPos);
+                    dbService.updatePlayerPosition(playerId, doorPos);
+                    responsePayload.put("newPosition", door[0] + "," + door[1]);
+                }
+            }
+
             dbService.updateCurrentPlayer(
                     game.getTurnManager().getCurrentPlayerId(),
                     game.getTurnManager().getDiceValue(),
