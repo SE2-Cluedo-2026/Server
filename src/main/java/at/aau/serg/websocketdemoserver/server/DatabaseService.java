@@ -55,7 +55,6 @@ public class DatabaseService {
 
   private void saveSeenCardsForPlayers(List<Player> players) {
     try {
-      jdbc.update("DELETE FROM seen_cards WHERE game_id = ?", GAME_ID);
       for (Player p : players) {
         saveSeenCards(p.getPlayerId(), p.getSeenCards());
       }

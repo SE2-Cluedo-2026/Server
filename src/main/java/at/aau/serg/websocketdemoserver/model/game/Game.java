@@ -113,6 +113,7 @@ public class Game {
         if (this.caseFile != null) {
             this.caseFile.clear();
         }
+        this.caseFile = null;
     }
 
     public void abort() {
