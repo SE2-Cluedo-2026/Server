@@ -78,7 +78,17 @@ public class GameServer {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final Map<String, ScheduledFuture<?>> scheduledEndTurns = new ConcurrentHashMap<>();
 
+    private static final Map<RoomType, int[]> ROOM_DOOR_POSITIONS = Map.of(
+            RoomType.KITCHEN,     new int[]{0,  0},
+            RoomType.BALLROOM,    new int[]{12, 0},
+            RoomType.LOUNGE,      new int[]{0,  4},
+            RoomType.LIBRARY,     new int[]{12, 4},
+            RoomType.STUDY,       new int[]{0,  8},
+            RoomType.BILLIARDROOM,new int[]{12, 8}
+    );
+
     private Suggestion pendingSuggestion = null;
+    private Suggestion pendingSuggestionSnapshot = null;
 
     public GameServer(DatabaseService dbService, SimpMessagingTemplate messagingTemplate, WebSocketEventListener eventListener) {
         this.dbService = dbService;
@@ -184,7 +194,7 @@ public class GameServer {
                 game.getTurnManager().getCurrentPlayerId(game.getPlayers()));
         responsePayload.put(CURRENT_PLAYER_INDEX,
                 game.getTurnManager().getCurrentPlayerId());
-        responsePayload.put(CURRENT_PHASE, game.getCurrentPhase().toString());
+        responsePayload.put(CURRENT_PHASE, game.getTurnManager().getPhase().toString());
         responsePayload.put("remainingMoves", game.getTurnManager().getMovesRemaining());
 
         Player rejoinedPlayer = findPlayer(game, playerKey);
@@ -601,6 +611,20 @@ public class GameServer {
             }
 
             int value = game.getTurnManager().rollDice();
+
+            // Spieler aus Raum auf Door Field setzen
+            Position currentPos = currentPlayer.getCurrentPosition();
+            if (currentPos != null && currentPos.getPositionType() == at.aau.serg.websocketdemoserver.model.enums.PositionType.ROOM) {
+                int[] door = ROOM_DOOR_POSITIONS.get(currentPos.getRoom());
+                if (door != null) {
+                    Position doorPos = new Position();
+                    doorPos.setBoardPosition(door[0], door[1]);
+                    currentPlayer.setCurrentPosition(doorPos);
+                    dbService.updatePlayerPosition(playerId, doorPos);
+                    responsePayload.put("newPosition", door[0] + "," + door[1]);
+                }
+            }
+
             dbService.updateCurrentPlayer(
                     game.getTurnManager().getCurrentPlayerId(),
                     game.getTurnManager().getDiceValue(),
@@ -983,6 +1007,7 @@ public class GameServer {
             game.getTurnManager().setPhaseWaitingForSuggestionResponse();
 
             this.pendingSuggestion = new Suggestion(suggester, suspect, room, weapon);
+            this.pendingSuggestionSnapshot = new Suggestion(suggester, suspect, room, weapon);
 
             response.put("type", GameMessageType.SUGGESTION_REQUEST.toString());
             responsePayload.put("gameID", game.getGameId());
@@ -1167,8 +1192,34 @@ public class GameServer {
                 response.put("type", GameMessageType.CHEAT_RESULT.toString());
                 responsePayload.put(CHEAT_DETECTED, true);
 
+                List<Card> normalMatchingCards = new ArrayList<>();
+                if (pendingSuggestionSnapshot != null) {
+                    SuggestionResolver resolver = new SuggestionResolver();
+                    resolver.resolveSuggestion(pendingSuggestionSnapshot, game.getPlayers());
+                    normalMatchingCards.addAll(pendingSuggestionSnapshot.getMatchingCards());
+
+                    if (!normalMatchingCards.isEmpty()) {
+                        rememberSeenCards(game, suggesterID, normalMatchingCards);
+                        dbService.saveSeenCards(suggesterID, normalMatchingCards);
+                    }
+                }
+
+                ArrayNode matchingCardsArray = mapper.createArrayNode();
+                for (Card card : normalMatchingCards) {
+                    ObjectNode cardNode = mapper.createObjectNode();
+                    cardNode.put(CARD_ID, card.getCardId());
+                    cardNode.put("name", card.getName());
+                    cardNode.put("type", card.getClass().getSimpleName());
+                    matchingCardsArray.add(cardNode);
+                }
+                responsePayload.set("matchingCards", matchingCardsArray);
+
+                // 2. Cheater markieren + Strafkarte (nur wenn nicht schon in normalMatchingCards)
                 ArrayNode cheatersArray = mapper.createArrayNode();
                 for (Player cheater : realCheaters) {
+                    cheater.useCheat();
+                    dbService.updatePlayerFlags(cheater.getPlayerId(), cheater.isEliminated(), cheater.isCheatUsed(), cheater.isAccusationUsed());
+
                     ObjectNode cheaterNode = mapper.createObjectNode();
                     cheaterNode.put(PLAYER_ID, cheater.getPlayerId());
                     ArrayNode cheaterCards = mapper.createArrayNode();
@@ -1178,6 +1229,7 @@ public class GameServer {
 
                         List<Card> safeCards = cheater.getCards().stream()
                                 .filter(c -> !caseFileCards.contains(c))
+                                .filter(c -> !normalMatchingCards.contains(c))
                                 .collect(Collectors.toList());
 
                         List<Card> unseenCards = safeCards.stream()
@@ -1187,19 +1239,19 @@ public class GameServer {
 
                         if (!pool.isEmpty()) {
                             int randomIndex = (int) (Math.random() * pool.size());
-                            Card randomCard = pool.get(randomIndex);
+                            Card penaltyCard = pool.get(randomIndex);
 
                             ObjectNode cardNode = mapper.createObjectNode();
-                            cardNode.put(CARD_ID, randomCard.getCardId());
-                            cardNode.put("name", randomCard.getName());
-                            cardNode.put("type", randomCard.getClass().getSimpleName());
+                            cardNode.put(CARD_ID, penaltyCard.getCardId());
+                            cardNode.put("name", penaltyCard.getName());
+                            cardNode.put("type", penaltyCard.getClass().getSimpleName());
                             cheaterCards.add(cardNode);
 
                             List<Card> singleCard = new ArrayList<>();
-                            singleCard.add(randomCard);
+                            singleCard.add(penaltyCard);
                             rememberSeenCards(game, suggesterID, singleCard);
                         } else {
-                            logger.warn("Cheat card pool for player {} was empty after excluding case file cards", cheater.getPlayerId());
+                            logger.warn("[Cheat] Penalty card pool for player {} was empty after excluding case file and already revealed cards", cheater.getPlayerId());
                         }
                     }
                     cheaterNode.set("cards", cheaterCards);
@@ -1248,6 +1300,8 @@ public class GameServer {
             responsePayload.put("targetPlayerId", suggesterID);
 
             cheatManager.clearCheaters();
+            pendingSuggestion = null;
+            pendingSuggestionSnapshot = null;
 
         } catch (Exception e) {
             response.put("type", "CHEAT_RESULT_ERROR");
