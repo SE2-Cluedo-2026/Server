@@ -1214,7 +1214,6 @@ public class GameServer {
                 }
                 responsePayload.set("matchingCards", matchingCardsArray);
 
-                // 2. Cheater markieren + Strafkarte (nur wenn nicht schon in normalMatchingCards)
                 ArrayNode cheatersArray = mapper.createArrayNode();
                 for (Player cheater : realCheaters) {
                     cheater.useCheat();
