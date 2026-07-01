@@ -194,7 +194,7 @@ public class GameServer {
                 game.getTurnManager().getCurrentPlayerId(game.getPlayers()));
         responsePayload.put(CURRENT_PLAYER_INDEX,
                 game.getTurnManager().getCurrentPlayerId());
-        responsePayload.put(CURRENT_PHASE, game.getCurrentPhase().toString());
+        responsePayload.put(CURRENT_PHASE, game.getTurnManager().getPhase().toString());
         responsePayload.put("remainingMoves", game.getTurnManager().getMovesRemaining());
 
         Player rejoinedPlayer = findPlayer(game, playerKey);
