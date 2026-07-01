@@ -95,7 +95,6 @@ class GameServerTest {
         when(game.isRunning()).thenReturn(true);
         when(lobbyManager.isPlayerInGame("p1")).thenReturn(true);
         when(game.getTurnManager()).thenReturn(TurnManager.getINSTANCE());
-        when(game.getCurrentPhase()).thenReturn(TurnPhase.WAITING_FOR_ROLL);
 
         Player p1 = mock(Player.class);
         when(p1.getPlayerId()).thenReturn("p1");

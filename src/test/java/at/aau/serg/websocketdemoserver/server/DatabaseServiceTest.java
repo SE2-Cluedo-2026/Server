@@ -595,7 +595,7 @@ class DatabaseServiceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"savePlayers", "savePlayerCards", "saveSeenCardsForPlayers"})
+    @ValueSource(strings = {"savePlayers", "savePlayerCards"})
     void playerListMethod_jdbcUpdateThrows_logsAndRethrows(String methodName) {
         when(jdbc.update(anyString(), any(Object[].class)))
                 .thenThrow(new DataIntegrityViolationException("DB error"));

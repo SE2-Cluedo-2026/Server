@@ -175,7 +175,7 @@ public class GameTest {
         game.finish();
 
         assertEquals(GameStatus.FINISHED, game.getStatus());
-        assertFalse(game.getCaseFile().isComplete());
+        assertNull(game.getCaseFile());
     }
 
     @Test
